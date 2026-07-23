@@ -7,4 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class Teacher extends Model
 {
     //
+
+    public function sections()
+{
+    return $this->belongsToMany(Section::class, 'teacher_section');
+}
 }

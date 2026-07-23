@@ -12,4 +12,10 @@ class Student extends Model
     {
         return $this->belongsTo(Classes::class, 'class_id');
     }
+
+
+    public function section()
+{
+    return $this->belongsTo(Section::class, 'section_id');
+}
 }
