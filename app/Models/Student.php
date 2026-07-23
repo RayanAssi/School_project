@@ -8,6 +8,22 @@ class Student extends Model
 {
     //
 
+    protected $fillable = [
+        'birth_date',
+        'comment',
+        'gender',
+        'residential_address',
+        'city',
+        'parent_id',
+        'section_id',
+        'class_id',
+        'user_id',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
     public function class()
     {
         return $this->belongsTo(Classes::class, 'class_id');
@@ -25,8 +41,8 @@ class Student extends Model
     }
 
     public function parent()
-{
-    return $this->belongsTo(Parente::class, 'parent_id');
-}
+    {
+        return $this->belongsTo(Parente::class, 'parent_id');
+    }
 
 }
