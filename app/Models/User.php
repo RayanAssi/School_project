@@ -46,6 +46,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'device_token' => 'array',
         ];
     }
 
@@ -77,5 +78,27 @@ class User extends Authenticatable
             ->withPivot('is_read')
             ->withTimestamps();
     }
+
+    public function addDeviceToken($token)
+    {
+        $tokens = $this->device_token ?? [];
+        if (!in_array($token, $tokens)) {
+            $tokens[] = $token;
+            $this->device_token = $tokens;
+            $this->save();
+        }
+        return $this;
+    }
+
+    // دالة مساعدة لحذف Token معين
+    public function removeDeviceToken($token)
+    {
+        $tokens = $this->device_token ?? [];
+        $tokens = array_filter($tokens, fn($t) => $t !== $token);
+        $this->device_token = array_values($tokens);
+        $this->save();
+        return $this;
+    }
+
 
 }
