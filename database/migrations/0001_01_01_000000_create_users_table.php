@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->json('device_token')->nullable();
+            $table->enum('user_type', ['student', 'parent', 'teacher', 'admin'])
+                ->default('student');
             $table->rememberToken();
             $table->timestamps();
         });
