@@ -4,213 +4,274 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Teacher;
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class TeacherController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * عرض قائمة جميع المعلمين
      */
-    public function index()
+    public function index(Request $request)
     {
-        $teachers = Teacher::with(['user', 'subjects', 'sections'])->get();
+        $query = Teacher::with('user');
+
+        // فلترة حسب الجنس
+        if ($request->has('gender') && $request->gender) {
+            $query->where('gender', $request->gender);
+        }
+
+        // فلترة حسب الدور
+        if ($request->has('role') && $request->role) {
+            $query->where('role', $request->role);
+        }
+
+        // بحث حسب رقم الهاتف
+        if ($request->has('search') && $request->search) {
+            $query->where('phone_number', 'LIKE', '%' . $request->search . '%');
+        }
+
+        $teachers = $query->latest()->paginate(15);
+
         return response()->json([
-            'status' => true,
-            'message' => 'All teachers retrieved successfully',
+            'success' => true,
             'data' => $teachers,
-        ], 200);
+            'message' => 'تم جلب البيانات بنجاح'
+        ]);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * إنشاء معلم جديد
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        // التحقق من البيانات
+        $validator = validator($request->all(), [
             'gender' => 'required|in:ذكر,أنثى',
-            'comment' => 'nullable|string',
+            'comment' => 'nullable|string|max:255',
+            'phone_number' => 'required|string|max:20|unique:teachers,phone_number',
             'role' => 'required|in:مدرس,موجه',
-            'phone_number' => 'required|string|unique:teachers,phone_number',
-            'user_id' => 'required|exists:users,id',
-            'subjects' => 'nullable|array',
-            'subjects.*' => 'exists:subjects,id',
-            'sections' => 'nullable|array',
-            'sections.*' => 'exists:sections,id',
+            'user_id' => 'required|exists:users,id'
+        ], [
+            'gender.required' => 'حقل الجنس مطلوب',
+            'gender.in' => 'الجنس يجب أن يكون ذكر أو أنثى',
+            'phone_number.required' => 'رقم الهاتف مطلوب',
+            'phone_number.unique' => 'رقم الهاتف مستخدم من قبل',
+            'role.required' => 'حقل الدور مطلوب',
+            'role.in' => 'الدور يجب أن يكون مدرس أو موجه',
+            'user_id.required' => 'المستخدم مطلوب',
+            'user_id.exists' => 'المستخدم غير موجود'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
+                'success' => false,
+                'errors' => $validator->errors()
             ], 422);
         }
 
-        // إنشاء المعلم
-        $teacher = Teacher::create($request->only([
-            'gender',
-            'comment',
-            'role',
-            'phone_number',
-            'user_id',
-        ]));
+        try {
+            DB::beginTransaction();
 
-        // ربط المواد (إن وجدت)
-        if ($request->has('subjects')) {
-            $teacher->subjects()->sync($request->subjects);
+            $teacher = Teacher::create($validator->validated());
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'data' => $teacher->load('user'),
+                'message' => 'تم إضافة المعلم بنجاح'
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء إضافة المعلم',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // ربط الشعب (إن وجدت)
-        if ($request->has('sections')) {
-            $teacher->sections()->sync($request->sections);
-        }
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Teacher created successfully',
-            'data' => $teacher->load(['user', 'subjects', 'sections']),
-        ], 201);
     }
 
     /**
-     * Display the specified resource.
+     * عرض بيانات معلم محدد
      */
-    public function show(string $id)
+    public function show($id)
     {
-        $teacher = Teacher::with(['user', 'subjects', 'sections'])->find($id);
+        $teacher = Teacher::with('user')->find($id);
 
         if (!$teacher) {
             return response()->json([
-                'status' => false,
-                'message' => 'Teacher not found',
+                'success' => false,
+                'message' => 'المعلم غير موجود'
             ], 404);
         }
 
         return response()->json([
-            'status' => true,
-            'message' => 'Teacher retrieved successfully',
+            'success' => true,
             'data' => $teacher,
-        ], 200);
+            'message' => 'تم جلب بيانات المعلم بنجاح'
+        ]);
     }
 
     /**
-     * Update the specified resource in storage.
+     * تحديث بيانات معلم
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, $id)
     {
         $teacher = Teacher::find($id);
 
         if (!$teacher) {
             return response()->json([
-                'status' => false,
-                'message' => 'Teacher not found',
+                'success' => false,
+                'message' => 'المعلم غير موجود'
             ], 404);
         }
 
-        $validator = Validator::make($request->all(), [
-            'gender' => 'sometimes|required|in:ذكر,أنثى',
-            'comment' => 'nullable|string',
-            'role' => 'sometimes|required|in:مدرس,موجه',
-            'phone_number' => 'sometimes|required|string|unique:teachers,phone_number,' . $id,
-            'user_id' => 'sometimes|required|exists:users,id',
-            'subjects' => 'nullable|array',
-            'subjects.*' => 'exists:subjects,id',
-            'sections' => 'nullable|array',
-            'sections.*' => 'exists:sections,id',
+        // التحقق من البيانات
+        $validator = validator($request->all(), [
+            'gender' => 'sometimes|in:ذكر,أنثى',
+            'comment' => 'nullable|string|max:255',
+            'phone_number' => [
+                'sometimes',
+                'string',
+                'max:20',
+                Rule::unique('teachers', 'phone_number')->ignore($id)
+            ],
+            'role' => 'sometimes|in:مدرس,موجه',
+            'user_id' => 'sometimes|exists:users,id'
+        ], [
+            'gender.in' => 'الجنس يجب أن يكون ذكر أو أنثى',
+            'phone_number.unique' => 'رقم الهاتف مستخدم من قبل',
+            'role.in' => 'الدور يجب أن يكون مدرس أو موجه',
+            'user_id.exists' => 'المستخدم غير موجود'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors(),
+                'success' => false,
+                'errors' => $validator->errors()
             ], 422);
         }
 
-        // تحديث بيانات المعلم
-        $teacher->update($request->only([
-            'gender',
-            'comment',
-            'role',
-            'phone_number',
-            'user_id',
-        ]));
+        try {
+            DB::beginTransaction();
 
-        // تحديث المواد (إن وجدت)
-        if ($request->has('subjects')) {
-            $teacher->subjects()->sync($request->subjects);
+            $teacher->update($validator->validated());
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'data' => $teacher->fresh()->load('user'),
+                'message' => 'تم تحديث بيانات المعلم بنجاح'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تحديث المعلم',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // تحديث الشعب (إن وجدت)
-        if ($request->has('sections')) {
-            $teacher->sections()->sync($request->sections);
-        }
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Teacher updated successfully',
-            'data' => $teacher->load(['user', 'subjects', 'sections']),
-        ], 200);
     }
 
     /**
-     * Remove the specified resource from storage.
+     * حذف معلم
      */
-    public function destroy(string $id)
+    public function destroy($id)
     {
         $teacher = Teacher::find($id);
 
         if (!$teacher) {
             return response()->json([
-                'status' => false,
-                'message' => 'Teacher not found',
+                'success' => false,
+                'message' => 'المعلم غير موجود'
             ], 404);
         }
 
-        // حذف العلاقات أولاً (Many-to-Many)
-        $teacher->subjects()->detach();
-        $teacher->sections()->detach();
+        try {
+            DB::beginTransaction();
 
-        // حذف المعلم
-        $teacher->delete();
+            $teacher->delete();
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Teacher deleted successfully',
-        ], 200);
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حذف المعلم بنجاح'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء حذف المعلم',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
+
     /**
-     * Get teachers by role (مدرس / موجه)
+     * الحصول على إحصائيات المعلمين
      */
-    public function getByRole($role)
+    public function statistics()
     {
-        $teachers = Teacher::with(['user', 'subjects', 'sections'])
-            ->where('role', $role)
-            ->get();
+        $stats = [
+            'total' => Teacher::count(),
+            'males' => Teacher::where('gender', 'ذكر')->count(),
+            'females' => Teacher::where('gender', 'أنثى')->count(),
+            'teachers' => Teacher::where('role', 'مدرس')->count(),
+            'supervisors' => Teacher::where('role', 'موجه')->count(),
+        ];
 
         return response()->json([
-            'status' => true,
-            'message' => "Teachers with role '{$role}' retrieved successfully",
-            'data' => $teachers,
-        ], 200);
+            'success' => true,
+            'data' => $stats,
+            'message' => 'تم جلب الإحصائيات بنجاح'
+        ]);
     }
 
-    /**
-     * Get teachers by gender (ذكر / أنثى)
-     */
-    public function getByGender($gender)
+    public function search(Request $request)
     {
-        $teachers = Teacher::with(['user', 'subjects', 'sections'])
-            ->where('gender', $gender)
-            ->get();
+        $query = Teacher::with('user');
+
+        if ($request->has('phone_number') && $request->phone_number) {
+            $query->where('phone_number', 'LIKE', '%' . $request->phone_number . '%');
+        }
+
+        if ($request->has('gender') && $request->gender) {
+            $query->where('gender', $request->gender);
+        }
+
+        if ($request->has('role') && $request->role) {
+            $query->where('role', $request->role);
+        }
+
+        if ($request->has('comment') && $request->comment) {
+            $query->where('comment', 'LIKE', '%' . $request->comment . '%');
+        }
+
+        $teachers = $query->get();
+
+        // ✅ التحقق: إذا ما في نتائج
+        if ($teachers->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'data' => [],
+                'count' => 0,
+                'message' => 'لا يوجد نتائج مطابقة للبحث'
+            ], 404); // أو 200 حسب رغبتك
+        }
 
         return response()->json([
-            'status' => true,
-            'message' => "Teachers with gender '{$gender}' retrieved successfully",
+            'success' => true,
+            'count' => $teachers->count(),
             'data' => $teachers,
-        ], 200);
+            'message' => 'تم جلب نتائج البحث بنجاح'
+        ]);
     }
 }
