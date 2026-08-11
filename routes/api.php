@@ -19,5 +19,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::resource('parents', ParentController::class);
     Route::get('parents/{id}/children', [ParentController::class, 'children']);
 
+    //Auth
+    Route::post('/logout', [AuthController::class, 'logout']);    
+    Route::post('/logout-all', [AuthController::class, 'logoutAllDevices']);
 
 });
