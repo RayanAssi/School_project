@@ -14,9 +14,9 @@ class Parente extends Model
         'full_name_father',
         'job_father',
         'phone_number_father',
-        'full_name_mather',
-        'job_mather',
-        'phone_number_mather',
+        'full_name_mother',
+        'job_mother',
+        'phone_number_mother',
         'user_id',
     ];
 
