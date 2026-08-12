@@ -30,6 +30,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
 
     // Student Routes 
+    Route::get('students/parents-list', [StudentController::class, 'getParentsList']);
     Route::get('students', [StudentController::class, 'index']);
     Route::post('students', [StudentController::class, 'store']);
     Route::get('students/search', [StudentController::class, 'search']);
@@ -41,6 +42,5 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     // Student Filters
     Route::get('students/class/{classId}', [StudentController::class, 'getStudentsByClass']);
     Route::get('students/section/{sectionId}', [StudentController::class, 'getStudentsBySection']);
-    Route::get('students/parents-list', [StudentController::class, 'getParentsList']);
 
 });

@@ -53,7 +53,7 @@ class StudentController extends Controller
                     'mother_phone' => $student->parent->phone_number_mother ?? null,
                     'subjects' => $student->subjects->map(function ($subject) {
                         return [
-                            'subject_name' => $subject->subject_name,
+                            'subject_name' => $subject->name,
                             'mark' => $subject->pivot->mark,
                             'exam_type' => $subject->pivot->exam_type,
                             'date' => $subject->pivot->date,
@@ -360,33 +360,32 @@ public function update(Request $request, string $id)
     /**
      * الحصول على جميع الآباء (للاستخدام في dropdown عند إنشاء الطالب)
      */
-    public function getParentsList()
-    {
-        try {
-            $parents = Parente::with('user')->get()->map(function ($parent) {
-                return [
-                    'id' => $parent->id,
-                    'father_name' => $parent->full_name_father,
-                    'mother_name' => $parent->full_name_mother,
-                    'father_phone' => $parent->phone_number_father,
-                    'mother_phone' => $parent->phone_number_mother,
-                    'user_name' => $parent->user->user_name ?? null,
-                ];
-            });
+    /**
+ * الحصول على جميع الآباء (للاستخدام في dropdown عند إنشاء الطالب)
+ */
+public function getParentsList()
+{
+    try {
+        $parents = DB::table('parents')->select(
+            'id',
+            'full_name_father as father_name',
+            'full_name_mother as mother_name',
+            
+        )->get();
 
-            return response()->json([
-                'success' => true,
-                'data' => $parents
-            ], 200);
+        return response()->json([
+            'success' => true,
+            'data' => $parents
+        ], 200);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ أثناء جلب بيانات الآباء',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء جلب بيانات الآباء',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Get students by class

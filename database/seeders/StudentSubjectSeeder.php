@@ -23,5 +23,16 @@ class StudentSubjectSeeder extends Seeder
             'exam_type' => 'نصفي',
             'mark' => 18.5,
         ]);
+
+        StudentSubject::create([
+            'student_id' => 4,
+            'subject_id' => 1,
+            'date' => '2026-08-12',
+            'note' => 'ممتاز',
+            'duration' => '01:30:00',
+            'exam_type' => 'نصفي',
+            'mark' => 18.5,
+        ]);
+    
     }
 }
