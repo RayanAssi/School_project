@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Dashboard\AdministratorController;
+use App\Http\Controllers\Dashboard\SectionController;
 use App\Http\Controllers\Dashboard\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,4 +17,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::delete('/admins/{id}', [AdministratorController::class, 'destroy'])->middleware('check.role');
     Route::post('/admins/{id}/reset-username', [AdministratorController::class, 'resetUserName']);
     Route::post('/admins/{id}/reset-password', [AdministratorController::class, 'resetPassword']);
+
+    //Section
+    Route::post('/sections', [SectionController::class, 'store'])->name('sections.store');
 });

@@ -154,6 +154,7 @@ class AdministratorController extends Controller
                 'message' => 'لا يمكنك حذف حسابك الخاص'
             ], 403);
         }
+        $admin->delete();
         $user->delete();
 
         return response()->json([
