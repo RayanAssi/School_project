@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Administrator;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -10,8 +11,8 @@ class UserSeeder extends Seeder
 {
     public function run()
     {
-        User::create([
-            'user_name' => 'admin',
+        $user = User::create([
+            'user_name' => 'mgr_admin_1953',
             'full_name' => 'Admin System',
             'email' => 'admin@gmail.com',
             'password' => Hash::make('password123'),
@@ -19,5 +20,10 @@ class UserSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
+        // إنشاء الادمن المرتبط بنفس المستخدم
+        Administrator::create([
+            'user_id' => $user->id,
+            'role' => 'admin',
+        ]);
     }
 }

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
     //User
     Route::get('/show_profile', [UserController::class, 'show']);
+    Route::get('/users', [UserController::class, 'index']);
 
     //Administrator
     Route::get('/admins', [AdministratorController::class, 'index']);
