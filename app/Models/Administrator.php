@@ -9,7 +9,7 @@ class Administrator extends Model
     //
 
     protected $fillable = [
-        'role', 
+        'role',
         'user_id',
     ];
 
@@ -17,4 +17,5 @@ class Administrator extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
 }

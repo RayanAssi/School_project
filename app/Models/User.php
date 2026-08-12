@@ -101,5 +101,44 @@ class User extends Authenticatable
         $this->save();
         return $this;
     }
+    const TYPE_STUDENT = 'student';
+    const TYPE_PARENT = 'parent';
+    const TYPE_TEACHER = 'teacher';
+    const TYPE_ADMIN = 'admin';
 
+    const PREFIXES = [
+        'student' => 'stu',
+        'parent' => 'par',
+        'teacher' => 'tch',
+        'admin' => 'mgr',
+    ];
+
+    // آلية توليد اسم مستخدم فريد بناءً على نوع المستخدم والاسم الكامل
+    public static function generateUserName($userType, $fullName)
+    {
+        $prefix = self::PREFIXES[$userType] ?? 'stu';
+        $firstName = explode(' ', trim($fullName))[0] ?? '';
+        $firstName = strtolower($firstName);
+        $random = rand(1000, 9999);
+
+        $userName = $prefix . '_' . $firstName . '_' . $random;
+
+        while (User::where('user_name', $userName)->exists()) {
+            $random = rand(1000, 9999);
+            $userName = $prefix . '_' . $firstName . '_' . $random;
+        }
+        return $userName;
+    }
+    //دالة لتوليد كلمة مرور عشوائية قوية من 9 خانات
+    public static function generatePassword()
+    {
+        $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=';
+
+        $password = '';
+        for ($i = 0; $i < 9; $i++) {
+            $password .= $chars[rand(0, strlen($chars) - 1)];
+        }
+
+        return $password;
+    }
 }
