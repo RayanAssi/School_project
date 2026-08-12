@@ -15,7 +15,6 @@ return new class extends Migration {
             $table->enum('gender', ['ذكر', 'أنثى']);
             $table->string('comment')->nullable();
             $table->string('phone_number')->unique();
-            $table->enum('role', ['مدرس', 'موجه'])->default('مدرس');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
