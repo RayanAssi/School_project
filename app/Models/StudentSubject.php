@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 class StudentSubject extends Model
 {
-    //
-    protected $table = 'student_subject';
+    use HasFactory;
 
+    protected $table = 'student_subject';
 
     protected $fillable = [
         'student_id',
@@ -17,17 +17,36 @@ class StudentSubject extends Model
         'note',
         'duration',
         'exam_type',
-        'mark',
+        'mark'
     ];
 
+    protected $casts = [
+        'date' => 'date',
+        'duration' => 'datetime:H:i:s',
+        'mark' => 'float'
+    ];
+
+    // Relationships
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
 
     public function subject()
     {
-        return $this->belongsTo(Subject::class, 'subject_id');
+        return $this->belongsTo(Subject::class);
     }
 
-    public function student()
+    // Accessor for formatted duration
+    public function getFormattedDurationAttribute()
     {
-        return $this->belongsTo(Student::class, 'student_id');
+        return $this->duration ? date('H:i', strtotime($this->duration)) : null;
+    }
+
+    // Check if student passed
+    public function isPassed()
+    {
+        // Assuming pass mark is 50
+        return $this->mark && $this->mark >= 50;
     }
 }

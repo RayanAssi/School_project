@@ -8,7 +8,7 @@ use App\Http\Controllers\Dashboard\UserController;
 use App\Http\Controllers\Dashboard\ParentController;
 
 use App\Http\Controllers\Dashboard\FileController;
-
+use App\Http\Controllers\Dashboard\StudentSubjectController;
 use App\Http\Controllers\Dashboard\SubjectController;
 
 use Illuminate\Support\Facades\Route;
@@ -84,4 +84,20 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::resource('subjects', SubjectController::class);
 
 
+    // Student Subject Routes
+    Route::get('student-subjects/statistics', [StudentSubjectController::class, 'statistics'])->name('student-subjects.statistics');
+    Route::get('student-subjects/search', [StudentSubjectController::class, 'search'])->name('student-subjects.search');
+    Route::get('student-subjects/student/{studentId}/grades', [StudentSubjectController::class, 'getStudentGrades'])->name('student-subjects.student-grades');
+    Route::get('student-subjects/subject/{subjectId}/stats', [StudentSubjectController::class, 'getSubjectStats'])->name('student-subjects.subject-stats');
+    Route::get('student-subjects/student/{studentId}/export', [StudentSubjectController::class, 'exportStudentGrades'])->name('student-subjects.export');
+    Route::get('student-subjects/exam-type/{examType}', [StudentSubjectController::class, 'getByExamType'])->name('student-subjects.exam-type');
+    Route::get('student-subjects/date-range', [StudentSubjectController::class, 'getByDateRange'])->name('student-subjects.date-range');
+    Route::get('student-subjects/passed', [StudentSubjectController::class, 'getPassedStudents'])->name('student-subjects.passed');
+    Route::get('student-subjects/failed', [StudentSubjectController::class, 'getFailedStudents'])->name('student-subjects.failed');
+    Route::get('student-subjects/average/{subjectId}', [StudentSubjectController::class, 'getSubjectAverage'])->name('student-subjects.average');
+    Route::get('student-subjects/top-students', [StudentSubjectController::class, 'getTopStudents'])->name('student-subjects.top-students');
+    Route::get('student-subjects/student/{studentId}/report', [StudentSubjectController::class, 'generateReport'])->name('student-subjects.report');
+    
+    // Resource Routes (must be at the end)
+    Route::resource('student-subjects', StudentSubjectController::class);
 });
