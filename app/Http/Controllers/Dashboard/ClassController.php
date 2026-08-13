@@ -14,42 +14,108 @@ class ClassController extends Controller
      * Display a list of all classes with sections and teacher count
      * GET /api/classes
      */
-    public function index()
-    {
-        try {
-            $classes = Classes::with([
-                'sections' => function ($query) {
-                    $query->select('id', 'name', 'class_id')
-                        ->withCount(['teachers']);
-                },
-                'students:id,user_id,class_id'
-            ])
-            ->withCount([
-                'sections',
-                'students'
-            ])
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
+    /**
+ * Display a list of all classes with sections and teacher count
+ * GET /api/classes
+ */
+/**
+ * Display a list of all classes with sections, students, teachers and subjects
+ * GET /api/classes
+ */
+public function index()
+{
+    try {
+        $classes = Classes::with([
+            'sections' => function ($query) {
+                $query->with(['teachers' => function ($q) {
+                    $q->with(['user:id,full_name,email']);
+                }])
+                ->withCount(['teachers']);
+            },
+            'subjects',
+            'students' => function ($query) {
+                $query->with(['user:id,full_name,email', 'section:id,name']);
+            }
+        ])
+        ->withCount(['students', 'subjects', 'sections'])
+        ->orderBy('created_at', 'desc')
+        ->get();
 
-            // Calculate total teachers manually
-            foreach ($classes as $class) {
-                $class->total_teachers = $class->sections->sum('teachers_count');
+        // تنسيق البيانات لكل صف
+        $formattedClasses = $classes->map(function ($class) {
+            // حساب عدد الأساتذة الكلي
+            $totalTeachers = $class->sections->sum('teachers_count');
+
+            // جلب قائمة الأساتذة مع تفاصيلهم
+            $teachers = collect();
+            foreach ($class->sections as $section) {
+                foreach ($section->teachers as $teacher) {
+                    $teachers->push([
+                        'id' => $teacher->id,
+                        'full_name' => $teacher->user->full_name ?? null,
+                        'email' => $teacher->user->email ?? null,
+                        'gender' => $teacher->gender ?? null,
+                        'phone_number' => $teacher->phone_number ?? null,
+                        'role' => $teacher->role ?? null,
+                        'section_name' => $section->name,
+                    ]);
+                }
             }
 
-            return response()->json([
-                'success' => true,
-                'data' => $classes,
-                'message' => 'تم جلب الصفوف بنجاح'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ في جلب الصفوف',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+            return [
+                'id' => $class->id,
+                'name' => $class->name,
+                'comment' => $class->comment,
+                'created_at' => $class->created_at,
+                'updated_at' => $class->updated_at,
+                'statistics' => [
+                    'total_students' => $class->students_count,
+                    'total_sections' => $class->sections_count,
+                    'total_subjects' => $class->subjects_count,
+                    'total_teachers' => $totalTeachers,
+                ],
+                'sections' => $class->sections->map(function ($section) {
+                    return [
+                        'id' => $section->id,
+                        'name' => $section->name,
+                        'teachers_count' => $section->teachers_count,
+                    ];
+                }),
+                'subjects' => $class->subjects->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'name' => $subject->name,
+                        'full_mark' => $subject->full_mark,
+                        'comment' => $subject->comment,
+                    ];
+                }),
+                'students' => $class->students->map(function ($student) {
+                    return [
+                        'id' => $student->id,
+                        'full_name' => $student->user->full_name ?? null,
+                        'email' => $student->user->email ?? null,
+                        'section_name' => $student->section->name ?? null,
+                    ];
+                }),
+                'teachers' => $teachers,
+                'teachers_count' => $teachers->count(),
+            ];
+        });
 
+        return response()->json([
+            'success' => true,
+            'data' => $formattedClasses,
+            'total' => $formattedClasses->count(),
+            'message' => 'تم جلب جميع الصفوف بنجاح'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ في جلب الصفوف',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
     /**
      * Create a new class
      * POST /api/classes
@@ -95,51 +161,74 @@ class ClassController extends Controller
      * Display a specific class with sections, students, teachers and subjects
      * GET /api/classes/{id}
      */
-    public function show($id)
-    {
-        try {
-            $class = Classes::with([
-                'sections' => function ($query) {
-                    $query->withCount(['teachers']);
-                },
-                'subjects',
-                'students' => function ($query) {
-                    $query->with(['user:id,full_name,email', 'section:id,name']);
-                }
-            ])
-                ->withCount(['students', 'subjects', 'sections'])
-                ->find($id);
-
-            if (!$class) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'الصف غير موجود'
-                ], 404);
+    /**
+ * Display a specific class with sections, students, teachers and subjects
+ * GET /api/classes/{id}
+ */
+public function show($id)
+{
+    try {
+        $class = Classes::with([
+            'sections' => function ($query) {
+                $query->withCount(['teachers']);
+            },
+            'subjects',
+            'students' => function ($query) {
+                $query->with(['user:id,full_name,email', 'section:id,name']);
             }
+        ])
+        ->withCount(['students', 'subjects', 'sections'])
+        ->find($id);
 
-            $totalTeachers = $class->sections->sum('teachers_count');
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'class' => $class,
-                    'statistics' => [
-                        'total_students' => $class->students_count,
-                        'total_sections' => $class->sections_count,
-                        'total_subjects' => $class->subjects_count,
-                        'total_teachers' => $totalTeachers,
-                    ]
-                ],
-                'message' => 'تم جلب بيانات الصف بنجاح'
-            ]);
-        } catch (\Exception $e) {
+        if (!$class) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ في جلب بيانات الصف',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'الصف غير موجود'
+            ], 404);
         }
+
+        // حساب عدد الأساتذة الكلي
+        $totalTeachers = $class->sections->sum('teachers_count');
+
+        // جلب قائمة الأساتذة مع تفاصيلهم
+        $teachers = collect();
+        foreach ($class->sections as $section) {
+            foreach ($section->teachers as $teacher) {
+                $teachers->push([
+                    'id' => $teacher->id,
+                    'full_name' => $teacher->user->full_name ?? null,
+                    'email' => $teacher->user->email ?? null,
+                    'gender' => $teacher->gender ?? null,
+                    'phone_number' => $teacher->phone_number ?? null,
+                    'role' => $teacher->role ?? null,
+                    'section_name' => $section->name,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'class' => $class,
+                'statistics' => [
+                    'total_students' => $class->students_count,
+                    'total_sections' => $class->sections_count,
+                    'total_subjects' => $class->subjects_count,
+                    'total_teachers' => $totalTeachers,
+                ],
+                'teachers' => $teachers, // قائمة الأساتذة
+                'teachers_count' => $teachers->count(), // عدد الأساتذة
+            ],
+            'message' => 'تم جلب بيانات الصف بنجاح'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ في جلب بيانات الصف',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Update a class
