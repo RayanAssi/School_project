@@ -14,7 +14,7 @@ class StudentSubjectSeeder extends Seeder
     public function run(): void
     {
         //
-        StudentSubject::create([
+        /* StudentSubject::create([
             'student_id' => 3,
             'subject_id' => 1,
             'date' => '2026-08-12',
@@ -32,7 +32,7 @@ class StudentSubjectSeeder extends Seeder
             'duration' => '01:30:00',
             'exam_type' => 'نصفي',
             'mark' => 18.5,
-        ]);
+        ]); */
     
     }
 }

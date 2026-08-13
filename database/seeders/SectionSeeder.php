@@ -11,9 +11,9 @@ class SectionSeeder extends Seeder
     /**
      * Run the database seeds.
      */
-    public function run(): void
+    /* public function run(): void
     {
         //
         Section::create(['name' => 'أ', 'class_id' => 2]);
-    }
+    } */
 }

@@ -27,9 +27,9 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             UserSeeder::class,
-            Section::class,
+            /* Section::class,
             Subject::class,
-            StudentSubject::class,
+            StudentSubject::class, */
         ]);
     }
 }
