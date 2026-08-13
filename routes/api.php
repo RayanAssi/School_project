@@ -35,6 +35,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
     // Student Routes 
     Route::get('students/parents-list', [StudentController::class, 'getParentsList']);
+    Route::get('students/sections-list', [StudentController::class, 'getSectionsList']);
+    Route::get('students/classes-list', [StudentController::class, 'getClassesList']);
     Route::get('students', [StudentController::class, 'index']);
     Route::post('students', [StudentController::class, 'store']);
     Route::get('students/search', [StudentController::class, 'search']);
