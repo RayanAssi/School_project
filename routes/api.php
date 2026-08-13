@@ -20,8 +20,10 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::resource('teachers', TeacherController::class);
 
     //parents Routes
+    Route::get('parents/statistics', [ParentController::class, 'statistics'])->name('parents.statistics');
+    Route::get('parents/search', [ParentController::class, 'search'])->name('parents.search');
+    Route::get('parents/{parentId}/children', [ParentController::class, 'getChildren'])->name('parents.children');
     Route::resource('parents', ParentController::class);
-    Route::get('parents/{id}/children', [ParentController::class, 'children']);
 
     //Auth
     Route::post('/logout', [AuthController::class, 'logout']);    
