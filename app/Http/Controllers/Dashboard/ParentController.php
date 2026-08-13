@@ -6,21 +6,71 @@ use App\Http\Controllers\Controller;
 use App\Models\Parente;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 
 class ParentController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $parents = Parente::with('user')->paginate(15);
-        return response()->json([
-            'success' => true,
-            'data' => $parents
-        ]);
+        try {
+            $query = Parente::with(['user']);
+
+            // فلترة حسب اسم الأب
+            if ($request->has('father_name') && $request->father_name) {
+                $query->where('full_name_father', 'LIKE', "%{$request->father_name}%");
+            }
+
+            // فلترة حسب اسم الأم
+            if ($request->has('mother_name') && $request->mother_name) {
+                $query->where('full_name_mother', 'LIKE', "%{$request->mother_name}%");
+            }
+
+            // فلترة حسب وظيفة الأب
+            if ($request->has('job_father') && $request->job_father) {
+                $query->where('job_father', 'LIKE', "%{$request->job_father}%");
+            }
+
+            // فلترة حسب وظيفة الأم
+            if ($request->has('job_mother') && $request->job_mother) {
+                $query->where('job_mother', 'LIKE', "%{$request->job_mother}%");
+            }
+
+
+            $parents = $query->get();
+
+            $formattedParents = $parents->map(function ($parent) {
+                return [
+                    'id' => $parent->id,
+                    'user_name' => $parent->user->user_name ?? null,
+                    'email' => $parent->user->email ?? null,
+                    'full_name_father' => $parent->full_name_father,
+                    'full_name_mother' => $parent->full_name_mother,
+                    'job_father' => $parent->job_father,
+                    'job_mother' => $parent->job_mother,
+                    'phone_number_father' => $parent->phone_number_father,
+                    'phone_number_mother' => $parent->phone_number_mother,
+                    'created_at' => $parent->created_at,
+                    'updated_at' => $parent->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedParents,
+                'total' => $formattedParents->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات الأولياء',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -29,51 +79,74 @@ class ParentController extends Controller
     public function store(Request $request)
     {
         try {
-            $validated = $request->validate([
-                // Fields for parents table
+            // التحقق من صحة البيانات
+            $validator = Validator::make($request->all(), [
                 'full_name_father' => 'required|string|max:255',
                 'full_name_mother' => 'required|string|max:255',
                 'job_father' => 'required|string|max:255',
                 'job_mother' => 'required|string|max:255',
-                'phone_number_father' => 'required|string|max:20',
-                'phone_number_mother' => 'required|string|max:20',
-                // Fields for users table
-                'user_name' => 'required|string|unique:users,user_name|max:255',
-                'full_name' => 'required|string|max:255',
+                'phone_number_father' => 'required|string|unique:parents,phone_number_father',
+                'phone_number_mother' => 'required|string|unique:parents,phone_number_mother',
                 'email' => 'required|email|unique:users,email',
-                'password' => 'required|string|min:8|confirmed',
             ]);
 
-            // Create user in users table
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $userName = User::generateUserName('parent', $request->full_name_father);
+            $newPassword = User::generatePassword();
+
+            //create user
             $user = User::create([
-                'user_name' => $validated['user_name'],
-                'full_name' => $validated['full_name'],
-                'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
-                'user_type' => 'parent', // Set user type as parent
+                'full_name' => $request->full_name_father,
+                'user_name' => $userName,
+                'email' => $request->email,
+                'password' => Hash::make($newPassword),
+                'user_type' => 'parent',
             ]);
 
-            // Create parent in parents table
+            //create parent
             $parent = Parente::create([
-                'full_name_father' => $validated['full_name_father'],
-                'full_name_mother' => $validated['full_name_mother'],
-                'job_father' => $validated['job_father'],
-                'job_mother' => $validated['job_mother'],
-                'phone_number_father' => $validated['phone_number_father'],
-                'phone_number_mother' => $validated['phone_number_mother'],
+                'full_name_father' => $request->full_name_father,
+                'full_name_mother' => $request->full_name_mother,
+                'job_father' => $request->job_father,
+                'job_mother' => $request->job_mother,
+                'phone_number_father' => $request->phone_number_father,
+                'phone_number_mother' => $request->phone_number_mother,
                 'user_id' => $user->id,
             ]);
 
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Parent created successfully',
-                'data' => $parent->load('user')
+                'message' => 'تم إنشاء الأب بنجاح',
+                'data' => [
+                    'parent' => [
+                        'id' => $parent->id,
+                        'full_name_father' => $parent->full_name_father,
+                        'full_name_mother' => $parent->full_name_mother,
+                        'job_father' => $parent->job_father,
+                        'job_mother' => $parent->job_mother,
+                        'phone_number_father' => $parent->phone_number_father,
+                        'phone_number_mother' => $parent->phone_number_mother,
+                        'user_name' => $userName,
+                        'email' => $user->email,
+                        'password' => $newPassword,
+                    ]
+                ]
             ], 201);
-
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error creating parent',
+                'message' => 'حدث خطأ أثناء إنشاء الأب',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -82,106 +155,112 @@ class ParentController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show($id)
+    public function show(string $id)
     {
         try {
-            $parent = Parente::with('user')->findOrFail($id);
+            $parent = Parente::with(['user'])->find($id);
+
+            if (!$parent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الأب غير موجود'
+                ], 404);
+            }
+
+            $parentData = [
+                'id' => $parent->id,
+                'user_name' => $parent->user->user_name ?? null,
+                'email' => $parent->user->email ?? null,
+                'full_name_father' => $parent->full_name_father,
+                'full_name_mother' => $parent->full_name_mother,
+                'job_father' => $parent->job_father,
+                'job_mother' => $parent->job_mother,
+                'phone_number_father' => $parent->phone_number_father,
+                'phone_number_mother' => $parent->phone_number_mother,
+                'created_at' => $parent->created_at,
+                'updated_at' => $parent->updated_at,
+            ];
+
             return response()->json([
                 'success' => true,
-                'data' => $parent
-            ]);
+                'data' => $parentData
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Parent not found',
+                'message' => 'حدث خطأ أثناء جلب بيانات الأب',
                 'error' => $e->getMessage()
-            ], 404);
+            ], 500);
         }
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         try {
-            $parent = Parente::findOrFail($id);
+            $parent = Parente::find($id);
 
-            $validated = $request->validate([
-                // Fields for parents table
-                'full_name_father' => 'sometimes|required|string|max:255',
-                'full_name_mother' => 'sometimes|required|string|max:255',
-                'job_father' => 'sometimes|required|string|max:255',
-                'job_mother' => 'sometimes|required|string|max:255',
-                'phone_number_father' => 'sometimes|required|string|max:20',
-                'phone_number_mother' => 'sometimes|required|string|max:20',
-                // Fields for users table
-                'user_name' => [
-                    'sometimes',
-                    'required',
-                    'string',
-                    'max:255',
-                    Rule::unique('users', 'user_name')->ignore($parent->user_id),
-                ],
-                'full_name' => 'sometimes|required|string|max:255',
-                'email' => [
-                    'sometimes',
-                    'required',
-                    'email',
-                    Rule::unique('users', 'email')->ignore($parent->user_id),
-                ],
-                'password' => 'sometimes|nullable|string|min:8|confirmed',
+            if (!$parent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الأب غير موجود'
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'full_name_father' => 'sometimes|string|max:255',
+                'full_name_mother' => 'sometimes|string|max:255',
+                'job_father' => 'sometimes|string|max:255',
+                'job_mother' => 'sometimes|string|max:255',
+                'phone_number_father' => 'sometimes|string|unique:parents,phone_number_father,' . $id,
+                'phone_number_mother' => 'sometimes|string|unique:parents,phone_number_mother,' . $id,
             ]);
 
-            // Update parent data (only fields in parents table)
-            $parentData = [];
-            $parentFields = [
-                'full_name_father', 
-                'full_name_mother', 
-                'job_father', 
-                'job_mother', 
-                'phone_number_father', 
-                'phone_number_mother'
-            ];
-            
-            foreach ($parentFields as $field) {
-                if (isset($validated[$field])) {
-                    $parentData[$field] = $validated[$field];
-                }
-            }
-            
-            if (!empty($parentData)) {
-                $parent->update($parentData);
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
             }
 
-            // Update user data (fields in users table)
-            $userData = [];
-            $userFields = ['user_name', 'full_name', 'email', 'device_token'];
-            
-            foreach ($userFields as $field) {
-                if ($request->has($field)) {
-                    $userData[$field] = $validated[$field];
+            DB::beginTransaction();
+
+            if ($request->has('full_name_father') || $request->has('full_name_mother')) {
+                $user = User::find($parent->user_id);
+                if ($user) {
+                    $fatherName = $request->full_name_father ?? $parent->full_name_father;
+                    $motherName = $request->full_name_mother ?? $parent->full_name_mother;
+                    $user->full_name = $fatherName;
+                    $user->save();
                 }
             }
-            
-            if ($request->filled('password')) {
-                $userData['password'] = Hash::make($validated['password']);
-            }
-            
-            if (!empty($userData)) {
-                $parent->user->update($userData);
-            }
+
+            //update parent data
+            $parent->update($request->only([
+                'full_name_father',
+                'full_name_mother',
+                'job_father',
+                'job_mother',
+                'phone_number_father',
+                'phone_number_mother'
+            ]));
+
+            DB::commit();
+
+            $updatedParent = Parente::with(['user'])->find($id);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Parent updated successfully',
-                'data' => $parent->fresh()->load('user')
-            ]);
-
+                'message' => 'تم تحديث بيانات الأب بنجاح',
+                'data' => $updatedParent
+            ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error updating parent',
+                'message' => 'حدث خطأ أثناء تحديث بيانات الأب',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -190,48 +269,218 @@ class ParentController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id)
+    public function destroy(string $id)
     {
         try {
-            $parent = Parente::findOrFail($id);
-            
-            // Delete user (cascade will delete parent automatically)
-            $parent->user->delete();
-            
+            $parent = Parente::find($id);
+
+            if (!$parent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الأب غير موجود'
+                ], 404);
+            }
+
+            DB::beginTransaction();
+
+            // delete the associated user
+            $user = User::find($parent->user_id);
+            if ($user) {
+                $user->delete();
+            }
+
+            // delete the parent 
+            $parent->delete();
+
+            DB::commit();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Parent deleted successfully'
-            ]);
-
+                'message' => 'تم حذف الأب والمستخدم المرتبط به بنجاح'
+            ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting parent',
+                'message' => 'حدث خطأ أثناء حذف الأب',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Get children (students) of a parent.
+     * Get parents statistics
      */
-    public function children($id)
+    public function statistics()
     {
         try {
-            $parent = Parente::with('user')->findOrFail($id);
-            
+            $totalParents = Parente::count();
+
             return response()->json([
                 'success' => true,
-                'data' => $parent,
-                'message' => 'Children functionality needs relationship setup'
-            ]);
-
+                'data' => [
+                    'total' => $totalParents,
+                ]
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching children',
+                'message' => 'حدث خطأ أثناء جلب الإحصائيات',
                 'error' => $e->getMessage()
-            ], 404);
+            ], 500);
+        }
+    }
+
+    /**
+     * Search parents
+     */
+    /**
+     * Search parents
+     */
+    public function search(Request $request)
+    {
+        try {
+            $query = Parente::with(['user']);
+
+            // دعم القيم من GET و POST
+            $searchTerm = $request->input('q') ?? $request->query('q');
+
+            if ($searchTerm) {
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('full_name_father', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('full_name_mother', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('job_father', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('job_mother', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('phone_number_father', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('phone_number_mother', 'LIKE', "%{$searchTerm}%")
+                        ->orWhereHas('user', function ($u) use ($searchTerm) {
+                            $u->where('full_name', 'LIKE', "%{$searchTerm}%")
+                                ->orWhere('user_name', 'LIKE', "%{$searchTerm}%")
+                                ->orWhere('email', 'LIKE', "%{$searchTerm}%");
+                        });
+                });
+            }
+
+            $parents = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $parents,
+                'total' => $parents->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء البحث عن الأولياء',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get parents by phone number (father)
+     */
+    public function getParentsByFatherPhone($phone)
+    {
+        try {
+            $parents = Parente::with(['user'])
+                ->where('phone_number_father', 'LIKE', "%{$phone}%")
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $parents,
+                'total' => $parents->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب الأولياء حسب رقم هاتف الأب',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get parents by phone number (mother)
+     */
+    public function getParentsByMotherPhone($phone)
+    {
+        try {
+            $parents = Parente::with(['user'])
+                ->where('phone_number_mother', 'LIKE', "%{$phone}%")
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $parents,
+                'total' => $parents->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب الأولياء حسب رقم هاتف الأم',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get children of a specific parent
+     */
+    public function getChildren($parentId)
+    {
+        try {
+            $parent = Parente::with(['students.user', 'students.class', 'students.section'])->find($parentId);
+
+            if (!$parent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الولي غير موجود'
+                ], 404);
+            }
+
+            // جلب أبناء الولي
+            $children = $parent->students;
+
+            // تنسيق بيانات الأبناء
+            $formattedChildren = $children->map(function ($student) {
+                return [
+                    'id' => $student->id,
+                    'full_name' => $student->user->full_name ?? null,
+                    'user_name' => $student->user->user_name ?? null,
+                    'email' => $student->user->email ?? null,
+                    'birth_date' => $student->birth_date,
+                    'gender' => $student->gender,
+                    'residential_address' => $student->residential_address,
+                    'city' => $student->city,
+                    'class_name' => $student->class->name ?? null,
+                    'section_name' => $student->section->name ?? null,
+                    'comment' => $student->comment,
+                    'created_at' => $student->created_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'parent' => [
+                        'id' => $parent->id,
+                        'father_name' => $parent->full_name_father,
+                        'mother_name' => $parent->full_name_mother,
+                        'phone_father' => $parent->phone_number_father,
+                        'phone_mother' => $parent->phone_number_mother,
+                    ],
+                    'children' => $formattedChildren,
+                    'total_children' => $formattedChildren->count()
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب أبناء الولي',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }

@@ -6,23 +6,28 @@ use App\Http\Controllers\Dashboard\StudentController;
 use App\Http\Controllers\Dashboard\TeacherController;
 use App\Http\Controllers\Dashboard\UserController;
 use App\Http\Controllers\Dashboard\ParentController;
+use App\Http\Controllers\Dashboard\SubjectController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
 
-    //teacher
+    // Teacher Routes
     Route::get('teachers/statistics', [TeacherController::class, 'statistics'])->name('teachers.statistics');
     Route::get('teachers/search', [TeacherController::class, 'search'])->name('teachers.search');
+    Route::get('teachers/gender/{gender}', [TeacherController::class, 'getTeachersByGender'])->name('teachers.gender');
+    Route::get('teachers/phone/{phone}', [TeacherController::class, 'getTeachersByPhone'])->name('teachers.phone');
     Route::resource('teachers', TeacherController::class);
 
-    //parents
+    //parents Routes
+    Route::get('parents/statistics', [ParentController::class, 'statistics'])->name('parents.statistics');
+    Route::get('parents/search', [ParentController::class, 'search'])->name('parents.search');
+    Route::get('parents/{parentId}/children', [ParentController::class, 'getChildren'])->name('parents.children');
     Route::resource('parents', ParentController::class);
-    Route::get('parents/{id}/children', [ParentController::class, 'children']);
 
     //Auth
-    Route::post('/logout', [AuthController::class, 'logout']);    
+    Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/logout-all', [AuthController::class, 'logoutAllDevices']);
 
     //Class Routes
@@ -30,6 +35,9 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
 
     // Student Routes 
+    Route::get('students/parents-list', [StudentController::class, 'getParentsList']);
+    Route::get('students/sections-list', [StudentController::class, 'getSectionsList']);
+    Route::get('students/classes-list', [StudentController::class, 'getClassesList']);
     Route::get('students', [StudentController::class, 'index']);
     Route::post('students', [StudentController::class, 'store']);
     Route::get('students/search', [StudentController::class, 'search']);
@@ -41,6 +49,17 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     // Student Filters
     Route::get('students/class/{classId}', [StudentController::class, 'getStudentsByClass']);
     Route::get('students/section/{sectionId}', [StudentController::class, 'getStudentsBySection']);
-    Route::get('students/parents-list', [StudentController::class, 'getParentsList']);
+
+    // Subject Routes
+    Route::get('subjects/search', [SubjectController::class, 'search'])->name('subjects.search');
+    Route::get('subjects/class/{classId}', [SubjectController::class, 'getSubjectsByClass'])->name('subjects.by.class');
+    Route::get('subjects/mark-range', [SubjectController::class, 'getSubjectsByMarkRange'])->name('subjects.mark.range');
+    
+    // Teacher assignment routes
+    Route::post('subjects/assign-teacher', [SubjectController::class, 'assignTeacher'])->name('subjects.assign.teacher');
+    Route::post('subjects/remove-teacher', [SubjectController::class, 'removeTeacher'])->name('subjects.remove.teacher');
+    Route::get('subjects/{subjectId}/teachers', [SubjectController::class, 'getSubjectTeachers'])->name('subjects.teachers');
+    
+    Route::resource('subjects', SubjectController::class);
 
 });

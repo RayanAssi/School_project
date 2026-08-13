@@ -53,7 +53,7 @@ class StudentController extends Controller
                     'mother_phone' => $student->parent->phone_number_mother ?? null,
                     'subjects' => $student->subjects->map(function ($subject) {
                         return [
-                            'subject_name' => $subject->subject_name,
+                            'subject_name' => $subject->name,
                             'mark' => $subject->pivot->mark,
                             'exam_type' => $subject->pivot->exam_type,
                             'date' => $subject->pivot->date,
@@ -83,100 +83,100 @@ class StudentController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
-{
-    try {
-        // التحقق من صحة البيانات
-        $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'birth_date' => 'required|date',
-            'gender' => 'required|in:ذكر,أنثى',
-            'residential_address' => 'required|string',
-            'city' => 'required|string|max:255',
-            'class_id' => 'required|exists:classes,id',
-            'section_id' => 'required|exists:sections,id',
-            'parent_id' => 'required|exists:parents,id', // الولي موجود مسبقاً
-            'comment' => 'nullable|string',
-        ]);
+    {
+        try {
+            // التحقق من صحة البيانات
+            $validator = Validator::make($request->all(), [
+                'full_name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email',
+                'birth_date' => 'required|date',
+                'gender' => 'required|in:ذكر,أنثى',
+                'residential_address' => 'required|string',
+                'city' => 'required|string|max:255',
+                'class_id' => 'required|exists:classes,id',
+                'section_id' => 'required|exists:sections,id',
+                'parent_id' => 'required|exists:parents,id', // الولي موجود مسبقاً
+                'comment' => 'nullable|string',
+            ]);
 
-        if ($validator->fails()) {
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // توليد اسم المستخدم وكلمة المرور
+            $userName = User::generateUserName('student', $request->full_name);
+            $newPassword = User::generatePassword();
+
+            // إنشاء حساب المستخدم للطالب فقط
+            $user = User::create([
+                'full_name' => $request->full_name,
+                'user_name' => $userName,
+                'email' => $request->email,
+                'password' => Hash::make($newPassword),
+                'user_type' => 'student',
+            ]);
+
+            // إنشاء بيانات الطالب وربطه بالولي الموجود
+            $student = Student::create([
+                'birth_date' => $request->birth_date,
+                'comment' => $request->comment,
+                'gender' => $request->gender,
+                'residential_address' => $request->residential_address,
+                'city' => $request->city,
+                'parent_id' => $request->parent_id, // استخدام الولي الموجود
+                'section_id' => $request->section_id,
+                'class_id' => $request->class_id,
+                'user_id' => $user->id,
+            ]);
+
+            DB::commit();
+
+            // جلب بيانات الولي لعرضها في الرد
+            $parent = Parente::with('user')->find($request->parent_id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم إنشاء الطالب بنجاح',
+                'data' => [
+                    'student' => [
+                        'id' => $student->id,
+                        'full_name' => $user->full_name,
+                        'user_name' => $userName,
+                        'email' => $user->email,
+                        'password' => $newPassword,
+                        'birth_date' => $student->birth_date,
+                        'gender' => $student->gender,
+                        'residential_address' => $student->residential_address,
+                        'city' => $student->city,
+                        'class_id' => $student->class_id,
+                        'section_id' => $student->section_id,
+                        'comment' => $student->comment,
+                    ],
+                    'parent' => [
+                        'id' => $parent->id,
+                        'father_name' => $parent->full_name_father,
+                        'mother_name' => $parent->full_name_mother,
+                        'father_phone' => $parent->phone_number_father,
+                        'mother_phone' => $parent->phone_number_mother,
+                        'user_name' => $parent->user->user_name ?? null,
+                    ]
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+                'message' => 'حدث خطأ أثناء إنشاء الطالب',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        DB::beginTransaction();
-
-        // توليد اسم المستخدم وكلمة المرور
-        $userName = User::generateUserName('student', $request->full_name);
-        $newPassword = User::generatePassword();
-
-        // إنشاء حساب المستخدم للطالب فقط
-        $user = User::create([
-            'full_name' => $request->full_name,
-            'user_name' => $userName,
-            'email' => $request->email,
-            'password' => Hash::make($newPassword),
-            'user_type' => 'student',
-        ]);
-
-        // إنشاء بيانات الطالب وربطه بالولي الموجود
-        $student = Student::create([
-            'birth_date' => $request->birth_date,
-            'comment' => $request->comment,
-            'gender' => $request->gender,
-            'residential_address' => $request->residential_address,
-            'city' => $request->city,
-            'parent_id' => $request->parent_id, // استخدام الولي الموجود
-            'section_id' => $request->section_id,
-            'class_id' => $request->class_id,
-            'user_id' => $user->id,
-        ]);
-
-        DB::commit();
-
-        // جلب بيانات الولي لعرضها في الرد
-        $parent = Parente::with('user')->find($request->parent_id);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'تم إنشاء الطالب بنجاح',
-            'data' => [
-                'student' => [
-                    'id' => $student->id,
-                    'full_name' => $user->full_name,
-                    'user_name' => $userName,
-                    'email' => $user->email,
-                    'password' => $newPassword,
-                    'birth_date' => $student->birth_date,
-                    'gender' => $student->gender,
-                    'residential_address' => $student->residential_address,
-                    'city' => $student->city,
-                    'class_id' => $student->class_id,
-                    'section_id' => $student->section_id,
-                    'comment' => $student->comment,
-                ],
-                'parent' => [
-                    'id' => $parent->id,
-                    'father_name' => $parent->full_name_father,
-                    'mother_name' => $parent->full_name_mother,
-                    'father_phone' => $parent->phone_number_father,
-                    'mother_phone' => $parent->phone_number_mother,
-                    'user_name' => $parent->user->user_name ?? null,
-                ]
-            ]
-        ], 201);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'success' => false,
-            'message' => 'حدث خطأ أثناء إنشاء الطالب',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Display the specified resource.
@@ -250,75 +250,81 @@ class StudentController extends Controller
      * Update the specified resource in storage.
      */
     /**
- * Update the specified resource in storage.
- */
-public function update(Request $request, string $id)
-{
-    try {
-        $student = Student::find($id);
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+    {
+        try {
+            $student = Student::find($id);
 
-        if (!$student) {
-            return response()->json([
-                'success' => false,
-                'message' => 'الطالب غير موجود'
-            ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'full_name' => 'sometimes|string|max:255',
-            'birth_date' => 'sometimes|date',
-            'gender' => 'sometimes|in:ذكر,أنثى',
-            'residential_address' => 'sometimes|string',
-            'city' => 'sometimes|string|max:255',
-            'class_id' => 'sometimes|exists:classes,id',
-            'section_id' => 'sometimes|exists:sections,id',
-            'parent_id' => 'sometimes|exists:parents,id', // إضافة إمكانية تغيير الولي
-            'comment' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        DB::beginTransaction();
-
-        // تحديث بيانات المستخدم (الاسم فقط، بدون الإيميل)
-        if ($request->has('full_name')) {
-            $user = User::find($student->user_id);
-            if ($user) {
-                $user->full_name = $request->full_name;
-                $user->save();
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الطالب غير موجود'
+                ], 404);
             }
+
+            $validator = Validator::make($request->all(), [
+                'full_name' => 'sometimes|string|max:255',
+                'birth_date' => 'sometimes|date',
+                'gender' => 'sometimes|in:ذكر,أنثى',
+                'residential_address' => 'sometimes|string',
+                'city' => 'sometimes|string|max:255',
+                'class_id' => 'sometimes|exists:classes,id',
+                'section_id' => 'sometimes|exists:sections,id',
+                'parent_id' => 'sometimes|exists:parents,id', // إضافة إمكانية تغيير الولي
+                'comment' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // تحديث بيانات المستخدم (الاسم فقط، بدون الإيميل)
+            if ($request->has('full_name')) {
+                $user = User::find($student->user_id);
+                if ($user) {
+                    $user->full_name = $request->full_name;
+                    $user->save();
+                }
+            }
+
+            // تحديث بيانات الطالب
+            $student->update($request->only([
+                'birth_date',
+                'comment',
+                'gender',
+                'residential_address',
+                'city',
+                'section_id',
+                'class_id',
+                'parent_id'
+            ]));
+
+            DB::commit();
+
+            $updatedStudent = Student::with(['user', 'parent', 'class', 'section'])->find($id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تحديث بيانات الطالب بنجاح',
+                'data' => $updatedStudent
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تحديث بيانات الطالب',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // تحديث بيانات الطالب
-        $student->update($request->only([
-            'birth_date', 'comment', 'gender', 'residential_address',
-            'city', 'section_id', 'class_id', 'parent_id'
-        ]));
-
-        DB::commit();
-
-        $updatedStudent = Student::with(['user', 'parent', 'class', 'section'])->find($id);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'تم تحديث بيانات الطالب بنجاح',
-            'data' => $updatedStudent
-        ], 200);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'success' => false,
-            'message' => 'حدث خطأ أثناء تحديث بيانات الطالب',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Remove the specified resource from storage.
@@ -360,19 +366,18 @@ public function update(Request $request, string $id)
     /**
      * الحصول على جميع الآباء (للاستخدام في dropdown عند إنشاء الطالب)
      */
+    /**
+     * الحصول على جميع الآباء (للاستخدام في dropdown عند إنشاء الطالب)
+     */
     public function getParentsList()
     {
         try {
-            $parents = Parente::with('user')->get()->map(function ($parent) {
-                return [
-                    'id' => $parent->id,
-                    'father_name' => $parent->full_name_father,
-                    'mother_name' => $parent->full_name_mother,
-                    'father_phone' => $parent->phone_number_father,
-                    'mother_phone' => $parent->phone_number_mother,
-                    'user_name' => $parent->user->user_name ?? null,
-                ];
-            });
+            $parents = DB::table('parents')->select(
+                'id',
+                'full_name_father as father_name',
+                'full_name_mother as mother_name',
+
+            )->get();
 
             return response()->json([
                 'success' => true,
@@ -388,6 +393,57 @@ public function update(Request $request, string $id)
         }
     }
 
+
+    /**
+     * الحصول على جميع الشعب (للاستخدام في dropdown عند إنشاء الطالب)
+     */
+    public function getSectionsList()
+    {
+        try {
+            $sections = DB::table('sections')->select(
+                'id',
+                'name as section_name',
+                'class_id'
+            )->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $sections
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات الشعب',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * الحصول على جميع الصفوف (للاستخدام في dropdown عند إنشاء الطالب)
+     */
+    public function getClassesList()
+    {
+        try {
+            $classes = DB::table('classes')->select(
+                'id',
+                'name as class_name'
+            )->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $classes
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات الصفوف',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
     /**
      * Get students by class
      */
