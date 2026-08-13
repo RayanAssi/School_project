@@ -19,5 +19,10 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::post('/admins/{id}/reset-password', [AdministratorController::class, 'resetPassword']);
 
     //Section
-    Route::post('/sections', [SectionController::class, 'store'])->name('sections.store');
+    Route::get('/sections', [SectionController::class, 'index']);
+    Route::post('/sections', [SectionController::class, 'store']);
+    Route::put('/sections/{id}', [SectionController::class, 'update']);
+    Route::delete('/sections/{id}', [SectionController::class, 'destroy']);
+    Route::get('/sections/{id}', [SectionController::class, 'show']);
+    Route::get('/sections/statistics', [SectionController::class, 'statistics']);
 });

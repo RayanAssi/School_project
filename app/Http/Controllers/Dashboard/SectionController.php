@@ -9,6 +9,33 @@ use Illuminate\Validation\Rule;
 
 class SectionController extends Controller
 {
+    // get all sections with their classes and teachers
+    public function index(Request $request)
+    {
+        $query = Section::with(['class', 'teachers'])
+            ->withCount(['teachers', 'students']);
+
+        if ($request->has('class_id')) {
+            $query->where('class_id', $request->class_id);
+        }
+
+        if ($request->has('name')) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        }
+
+        $sections = $query->paginate(10);
+        if ($sections->isEmpty()) {
+            return response()->json([
+                'message' => 'No sections have been created yet',
+                'data' => $sections,
+            ], 200);
+        }
+        return response()->json([
+            'message' => 'Sections retrieved successfully',
+            'data' => $sections,
+        ], 200);
+    }
+    // create a new section with its class and teachers
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -31,7 +58,7 @@ class SectionController extends Controller
             'comment' => $validated['comment'] ?? null,
             'class_id' => $validated['class_id'],
         ]);
-        // ربط الأساتذة بالشعبة (في الجدول الوسيط)
+
         if (isset($validated['teacher_ids']) && !empty($validated['teacher_ids'])) {
             $section->teachers()->attach($validated['teacher_ids']);
         }
@@ -40,5 +67,98 @@ class SectionController extends Controller
             'message' => 'Section created successfully',
             'data' => $section->load(['class', 'teachers']),
         ], 201);
+    }
+    //edit section
+    public function update(Request $request, $id)
+    {
+        $section = Section::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('sections')->where(function ($query) use ($request) {
+                    return $query->where('class_id', $request->class_id);
+                })->ignore($section->id),
+            ],
+            'comment' => 'nullable|string|max:500',
+            'class_id' => 'required|exists:classes,id',
+            'teacher_ids' => 'nullable|array',
+            'teacher_ids.*' => 'exists:teachers,id',
+        ]);
+
+        $section->update([
+            'name' => $validated['name'],
+            'comment' => $validated['comment'] ?? null,
+            'class_id' => $validated['class_id'],
+        ]);
+
+        if ($request->has('teacher_ids')) {
+            if (empty($validated['teacher_ids'])) {
+                $section->teachers()->detach();
+            } else {
+                $section->teachers()->sync($validated['teacher_ids']);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Section updated successfully',
+            'data' => $section->load(['class', 'teachers']),
+        ], 200);
+    }
+    //show section with its class and teachers
+    public function show($id)
+    {
+        $section = Section::with([
+            'class',
+            'teachers',
+            'students'
+        ])->withCount([
+            'teachers',
+            'students'
+        ])->findOrFail($id);
+
+        return response()->json([
+            'message' => 'Section retrieved successfully',
+            'data' => $section,
+        ], 200);
+    }
+
+    //delete section
+    public function destroy($id)
+    {
+        $section = Section::findOrFail($id);
+        $section->delete();
+
+        return response()->json([
+            'message' => 'Section deleted successfully',
+            'data' => null,
+        ], 200);
+    }
+    //statistics of sections, teachers and students
+    public function statistics()
+    {
+        $statistics = [
+            'total_sections' => Section::count(),
+            'total_teachers' => Section::withCount('teachers')->get()->sum('teachers_count'),
+            'total_students' => Section::withCount('students')->get()->sum('students_count'),
+            'avg_teachers_per_section' => Section::count() > 0
+                ? round(Section::withCount('teachers')->get()->avg('teachers_count'), 2)
+                : 0,
+            'avg_students_per_section' => Section::count() > 0
+                ? round(Section::withCount('students')->get()->avg('students_count'), 2)
+                : 0,
+            'max_teachers_in_section' => Section::withCount('teachers')->get()->max('teachers_count') ?? 0,
+            'max_students_in_section' => Section::withCount('students')->get()->max('students_count') ?? 0,
+            'min_teachers_in_section' => Section::withCount('teachers')->get()->min('teachers_count') ?? 0,
+            'min_students_in_section' => Section::withCount('students')->get()->min('students_count') ?? 0,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Statistics retrieved successfully',
+            'data' => $statistics,
+        ], 200);
     }
 }
