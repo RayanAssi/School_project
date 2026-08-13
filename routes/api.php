@@ -6,6 +6,7 @@ use App\Http\Controllers\Dashboard\StudentController;
 use App\Http\Controllers\Dashboard\TeacherController;
 use App\Http\Controllers\Dashboard\UserController;
 use App\Http\Controllers\Dashboard\ParentController;
+use App\Http\Controllers\Dashboard\FileController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -48,5 +49,21 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     // Student Filters
     Route::get('students/class/{classId}', [StudentController::class, 'getStudentsByClass']);
     Route::get('students/section/{sectionId}', [StudentController::class, 'getStudentsBySection']);
+
+     // File Routes 
+    Route::get('files', [FileController::class, 'index'])->name('files.index');
+    Route::get('files/{id}', [FileController::class, 'show'])->name('files.show');
+    Route::get('files/{id}/download', [FileController::class, 'download'])->name('files.download');
+    Route::get('files/subject/{subjectId}', [FileController::class, 'getFilesBySubject'])->name('files.by-subject');
+    
+    // File Routes (Teachers only - with CheckRole middleware)
+    /* Route::middleware(['checkRole'])->group(function () {
+        Route::post('files', [FileController::class, 'store'])->name('files.store');
+        Route::put('files/{id}', [FileController::class, 'update'])->name('files.update');
+        Route::delete('files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
+    }); */
+    Route::post('files', [FileController::class, 'store'])->name('files.store');
+        Route::put('files/{id}', [FileController::class, 'update'])->name('files.update');
+        Route::delete('files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
 
 });

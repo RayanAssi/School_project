@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Validator;
 class FileController extends Controller
 {
     /**
-     * عرض قائمة الملفات حسب المادة
+     * Get list of files with optional subject filter
      * GET /api/files?subject_id=1
      */
     public function index(Request $request)
@@ -22,65 +22,54 @@ class FileController extends Controller
         try {
             $query = File::with(['subject:id,name']);
 
-            // فلتر حسب المادة
-            if ($request->has('subject_id')) {
+            // Filter by subject
+            if ($request->has('subject_id') && $request->subject_id) {
                 $query->where('subject_id', $request->subject_id);
             }
 
             $files = $query->orderBy('created_at', 'desc')->paginate(15);
 
+            // Add download URL to each file
+            $files->getCollection()->transform(function ($file) {
+                $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
+                return $file;
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => $files,
-                'message' => 'تم جلب الملفات بنجاح'
+                'message' => 'Files retrieved successfully'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ في جلب الملفات',
+                'message' => 'Failed to retrieve files',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * رفع ملف جديد (للاستاذ فقط)
+     * Upload a new file (teachers only)
      * POST /api/files
      */
     public function store(Request $request)
     {
-        // ✅ التحقق من تسجيل الدخول
-        if (!Auth::check()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'يجب تسجيل الدخول أولاً'
-            ], 401);
-        }
-
-        // ✅ التحقق من صلاحية الأستاذ (يجب أن يكون المستخدم من نوع teacher)
-        $user = Auth::user();
-        if ($user->type !== 'teacher' && $user->type !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'ليس لديك صلاحية لرفع الملفات. هذه الميزة مخصصة للأساتذة فقط.'
-            ], 403);
-        }
-
-        // ✅ التحقق من البيانات
+        // Validate request data
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'subject_id' => 'required|exists:subjects,id',
-            'file' => 'required|file|mimes:pdf,doc,docx,ppt,pptx,xls,xlsx,txt,zip,rar|max:10240', // 10MB كحد أقصى
+            'file_path' => 'required|file|mimes:pdf,doc,docx,ppt,pptx,xls,xlsx,txt,zip,rar|max:10240', // Max 10MB
         ], [
-            'name.required' => 'اسم الملف مطلوب',
-            'name.string' => 'اسم الملف يجب أن يكون نصاً',
-            'name.max' => 'اسم الملف لا يتجاوز 255 حرف',
-            'subject_id.required' => 'المادة مطلوبة',
-            'subject_id.exists' => 'المادة غير موجودة',
-            'file.required' => 'الملف مطلوب',
-            'file.file' => 'يجب أن يكون ملفاً صالحاً',
-            'file.mimes' => 'نوع الملف غير مدعوم. الأنواع المدعومة: pdf, doc, docx, ppt, pptx, xls, xlsx, txt, zip, rar',
-            'file.max' => 'حجم الملف يجب أن لا يتجاوز 10 ميجابايت',
+            'name.required' => 'File name is required',
+            'name.string' => 'File name must be a string',
+            'name.max' => 'File name cannot exceed 255 characters',
+            'subject_id.required' => 'Subject is required',
+            'subject_id.exists' => 'Subject does not exist',
+            'file_path.required' => 'File is required',
+            'file_path.file' => 'Must be a valid file',
+            'file_path.mimes' => 'File type not supported. Supported types: pdf, doc, docx, ppt, pptx, xls, xlsx, txt, zip, rar',
+            'file_path.max' => 'File size must not exceed 10MB',
         ]);
 
         if ($validator->fails()) {
@@ -91,271 +80,217 @@ class FileController extends Controller
         }
 
         try {
-            // ✅ رفع الملف
-            $uploadedFile = $request->file('file');
-            $originalName = $uploadedFile->getClientOriginalName();
+            // Upload file
+            $uploadedFile = $request->file('file_path');
             $extension = $uploadedFile->getClientOriginalExtension();
             
-            // إنشاء اسم فريد للملف
+            // Generate unique filename
             $fileName = time() . '_' . uniqid() . '.' . $extension;
             
-            // تخزين الملف في مجلد 'uploads/files'
+            // Store file in 'uploads/files' directory
             $path = $uploadedFile->storeAs('uploads/files', $fileName, 'public');
 
-            // ✅ إنشاء سجل في قاعدة البيانات
+            // Create database record
             $file = File::create([
                 'name' => $request->name,
                 'subject_id' => $request->subject_id,
                 'file_path' => $path,
-                'file_name' => $originalName,
-                'file_size' => $uploadedFile->getSize(),
-                'file_extension' => $extension,
-                'uploaded_by' => Auth::id(),
             ]);
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'file' => $file->load('subject'),
-                    'download_url' => url('/api/files/' . $file->id . '/download')
+                    'download_url' => url('/api/dashboard/files/' . $file->id . '/download')
                 ],
-                'message' => 'تم رفع الملف بنجاح'
+                'message' => 'File uploaded successfully'
             ], 201);
 
         } catch (\Exception $e) {
+            // Delete file if error occurs
+            if (isset($path) && Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+            
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء رفع الملف',
+                'message' => 'Failed to upload file',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * عرض ملف محدد
+     * Get specific file details
      * GET /api/files/{id}
      */
     public function show($id)
     {
         try {
-            $file = File::with(['subject:id,name', 'uploader:id,full_name,email'])
+            $file = File::with(['subject:id,name'])
                 ->find($id);
 
             if (!$file) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'الملف غير موجود'
+                    'message' => 'File not found'
                 ], 404);
             }
+
+            $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
 
             return response()->json([
                 'success' => true,
                 'data' => $file,
-                'message' => 'تم جلب بيانات الملف بنجاح'
+                'message' => 'File details retrieved successfully'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ في جلب بيانات الملف',
+                'message' => 'Failed to retrieve file details',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * تحميل الملف (للطلاب والأساتذة)
+     * Download file (students and teachers)
      * GET /api/files/{id}/download
      */
     public function download($id)
     {
-        // ✅ التحقق من تسجيل الدخول
-        if (!Auth::check()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'يجب تسجيل الدخول أولاً'
-            ], 401);
-        }
-
         try {
             $file = File::find($id);
 
             if (!$file) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'الملف غير موجود'
+                    'message' => 'File not found'
                 ], 404);
             }
 
-            // ✅ التحقق من وجود الملف في التخزين
+            // Check if file exists in storage
             if (!Storage::disk('public')->exists($file->file_path)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'الملف غير موجود في الخادم'
+                    'message' => 'File not found on server'
                 ], 404);
             }
 
-            // ✅ تسجيل عملية التحميل (اختياري)
-            // يمكنك إنشاء جدول downloads لتسجيل من قام بالتحميل ومتى
-
-            // ✅ تحميل الملف
+            // Download file
             $filePath = Storage::disk('public')->path($file->file_path);
+            
+            // Get file extension from path
+            $extension = pathinfo($file->file_path, PATHINFO_EXTENSION);
             
             return response()->download(
                 $filePath, 
-                $file->file_name ?? $file->name . '.' . $file->file_extension,
+                $file->name . '.' . $extension,
                 [
-                    'Content-Type' => $this->getMimeType($file->file_extension),
+                    'Content-Type' => $this->getMimeType($extension),
                 ]
             );
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء تحميل الملف',
+                'message' => 'Failed to download file',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * تحديث بيانات الملف (للاستاذ فقط)
+     * Update file details (teachers only)
      * PUT /api/files/{id}
      */
-    public function update(Request $request, $id)
-    {
-        // ✅ التحقق من تسجيل الدخول
-        if (!Auth::check()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'يجب تسجيل الدخول أولاً'
-            ], 401);
-        }
+public function update(Request $request, $id)
+{
+    $file = File::find($id);
 
-        // ✅ التحقق من صلاحية الأستاذ
-        $user = Auth::user();
-        if ($user->type !== 'teacher' && $user->type !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'ليس لديك صلاحية لتحديث الملفات'
-            ], 403);
-        }
-
-        $file = File::find($id);
-
-        if (!$file) {
-            return response()->json([
-                'success' => false,
-                'message' => 'الملف غير موجود'
-            ], 404);
-        }
-
-        // ✅ التحقق من أن الملف مرفوع من هذا الأستاذ (أو هو Admin)
-        if ($user->type !== 'admin' && $file->uploaded_by !== Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'ليس لديك صلاحية لتعديل هذا الملف'
-            ], 403);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255',
-            'subject_id' => 'sometimes|required|exists:subjects,id',
-        ], [
-            'name.required' => 'اسم الملف مطلوب',
-            'name.string' => 'اسم الملف يجب أن يكون نصاً',
-            'name.max' => 'اسم الملف لا يتجاوز 255 حرف',
-            'subject_id.required' => 'المادة مطلوبة',
-            'subject_id.exists' => 'المادة غير موجودة',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            $file->update($request->only(['name', 'subject_id']));
-
-            return response()->json([
-                'success' => true,
-                'data' => $file->load('subject'),
-                'message' => 'تم تحديث بيانات الملف بنجاح'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ أثناء تحديث الملف',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+    if (!$file) {
+        return response()->json([
+            'success' => false,
+            'message' => 'File not found'
+        ], 404);
     }
 
+    $validator = Validator::make($request->all(), [
+        'name' => 'sometimes|required|string|max:255',
+        'subject_id' => 'sometimes|required|exists:subjects,id',
+    ], [
+        'name.required' => 'File name is required',
+        'name.string' => 'File name must be a string',
+        'name.max' => 'File name cannot exceed 255 characters',
+        'subject_id.required' => 'Subject is required',
+        'subject_id.exists' => 'Subject does not exist',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    try {
+        // استخدم fill بدلاً من update
+        $file->fill($request->only(['name', 'subject_id']));
+        $file->save();
+
+        return response()->json([
+            'success' => true,
+            'data' => $file->load('subject'),
+            'message' => 'File details updated successfully'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to update file',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
     /**
-     * حذف ملف (للاستاذ فقط)
+     * Delete a file (teachers only)
      * DELETE /api/files/{id}
      */
     public function destroy($id)
     {
-        // ✅ التحقق من تسجيل الدخول
-        if (!Auth::check()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'يجب تسجيل الدخول أولاً'
-            ], 401);
-        }
-
-        // ✅ التحقق من صلاحية الأستاذ
-        $user = Auth::user();
-        if ($user->type !== 'teacher' && $user->type !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'ليس لديك صلاحية لحذف الملفات'
-            ], 403);
-        }
-
         $file = File::find($id);
 
         if (!$file) {
             return response()->json([
                 'success' => false,
-                'message' => 'الملف غير موجود'
+                'message' => 'File not found'
             ], 404);
         }
 
-        // ✅ التحقق من أن الملف مرفوع من هذا الأستاذ (أو هو Admin)
-        if ($user->type !== 'admin' && $file->uploaded_by !== Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'ليس لديك صلاحية لحذف هذا الملف'
-            ], 403);
-        }
-
         try {
-            // ✅ حذف الملف من التخزين
+            // Delete file from storage
             if (Storage::disk('public')->exists($file->file_path)) {
                 Storage::disk('public')->delete($file->file_path);
             }
 
-            // ✅ حذف السجل من قاعدة البيانات
+            // Delete record from database
             $file->delete();
 
             return response()->json([
                 'success' => true,
-                'message' => 'تم حذف الملف بنجاح'
+                'message' => 'File deleted successfully'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء حذف الملف',
+                'message' => 'Failed to delete file',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * الحصول على ملفات مادة معينة
+     * Get files by subject
      * GET /api/files/subject/{subjectId}
      */
     public function getFilesBySubject($subjectId)
@@ -366,14 +301,19 @@ class FileController extends Controller
             if (!$subject) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'المادة غير موجودة'
+                    'message' => 'Subject not found'
                 ], 404);
             }
 
             $files = File::where('subject_id', $subjectId)
-                ->with(['uploader:id,full_name'])
                 ->orderBy('created_at', 'desc')
                 ->paginate(15);
+
+            // Add download URL to each file
+            $files->getCollection()->transform(function ($file) {
+                $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
+                return $file;
+            });
 
             return response()->json([
                 'success' => true,
@@ -381,19 +321,19 @@ class FileController extends Controller
                     'subject' => $subject->only(['id', 'name']),
                     'files' => $files
                 ],
-                'message' => 'تم جلب ملفات المادة بنجاح'
+                'message' => 'Subject files retrieved successfully'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ في جلب ملفات المادة',
+                'message' => 'Failed to retrieve subject files',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * الحصول على MIME type حسب امتداد الملف
+     * Get MIME type based on file extension
      */
     private function getMimeType($extension)
     {

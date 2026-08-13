@@ -11,48 +11,47 @@ use Illuminate\Validation\Rule;
 class ClassController extends Controller
 {
     /**
-     * عرض قائمة جميع الصفوف مع الشعب وعدد الأساتذة
+     * Display a list of all classes with sections and teacher count
      * GET /api/classes
      */
     public function index()
-{
-    try {
-        $classes = Classes::with([
-            'sections' => function ($query) {
-                $query->select('id', 'name', 'class_id')
-                    ->withCount(['teachers']); // ✅ عدد الأساتذة في كل شعبة
-            },
-            'students:id,user_id,class_id'
-        ])
-        ->withCount([
-            'sections',      // ✅ عدد الشعب
-            'students'       // ✅ عدد الطلاب
-            // ❌ حذف 'sections.teachers' لأنها غير مدعومة
-        ])
-        ->orderBy('created_at', 'desc')
-        ->paginate(15);
+    {
+        try {
+            $classes = Classes::with([
+                'sections' => function ($query) {
+                    $query->select('id', 'name', 'class_id')
+                        ->withCount(['teachers']);
+                },
+                'students:id,user_id,class_id'
+            ])
+            ->withCount([
+                'sections',
+                'students'
+            ])
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
 
-        // ✅ حساب عدد الأساتذة يدوياً
-        foreach ($classes as $class) {
-            $class->total_teachers = $class->sections->sum('teachers_count');
+            // Calculate total teachers manually
+            foreach ($classes as $class) {
+                $class->total_teachers = $class->sections->sum('teachers_count');
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $classes,
+                'message' => 'تم جلب الصفوف بنجاح'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ في جلب الصفوف',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'data' => $classes,
-            'message' => 'تم جلب الصفوف بنجاح'
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'حدث خطأ في جلب الصفوف',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
     /**
-     * إنشاء صف جديد
+     * Create a new class
      * POST /api/classes
      */
     public function store(Request $request)
@@ -93,16 +92,15 @@ class ClassController extends Controller
     }
 
     /**
-     * عرض صف محدد مع عدد الشعب والطلاب والمدرسين والمواد
+     * Display a specific class with sections, students, teachers and subjects
      * GET /api/classes/{id}
      */
     public function show($id)
     {
         try {
-            // ✅ جلب الصف مع جميع العلاقات
             $class = Classes::with([
                 'sections' => function ($query) {
-                    $query->withCount(['teachers']); // عدد الأساتذة في كل شعبة
+                    $query->withCount(['teachers']);
                 },
                 'subjects',
                 'students' => function ($query) {
@@ -119,7 +117,6 @@ class ClassController extends Controller
                 ], 404);
             }
 
-            // ✅ حساب عدد الأساتذة من خلال الشعب
             $totalTeachers = $class->sections->sum('teachers_count');
 
             return response()->json([
@@ -142,10 +139,12 @@ class ClassController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-    }    /**
-         * تحديث صف
-         * PUT /api/classes/{id}
-         */
+    }
+
+    /**
+     * Update a class
+     * PUT /api/classes/{id}
+     */
     public function update(Request $request, $id)
     {
         if (!Auth::check()) {
@@ -198,7 +197,7 @@ class ClassController extends Controller
     }
 
     /**
-     * حذف صف
+     * Delete a class
      * DELETE /api/classes/{id}
      */
     public function destroy($id)
@@ -234,7 +233,4 @@ class ClassController extends Controller
             ], 500);
         }
     }
-
-
-
 }

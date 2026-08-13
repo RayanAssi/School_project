@@ -10,6 +10,7 @@ class File extends Model
     protected $fillable = [
         'name',
         'subject_id',
+        'file_path',
     ];
 
     public function subject()

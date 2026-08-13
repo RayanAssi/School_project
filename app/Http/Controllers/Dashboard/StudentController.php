@@ -21,19 +21,19 @@ class StudentController extends Controller
         try {
             $query = Student::with(['user', 'parent', 'class', 'section', 'subjects']);
 
-            // فلترة حسب الصف
+            // Filter by class
             if ($request->has('class_id') && $request->class_id) {
                 $query->where('class_id', $request->class_id);
             }
 
-            // فلترة حسب الشعبة
+            // Filter by section
             if ($request->has('section_id') && $request->section_id) {
                 $query->where('section_id', $request->section_id);
             }
 
             $students = $query->get();
 
-            // تنسيق البيانات لعرض معلومات الطالب مع اسم الأب والأم
+            // Format data to display student information with parent names
             $formattedStudents = $students->map(function ($student) {
                 return [
                     'id' => $student->id,
@@ -85,7 +85,7 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         try {
-            // التحقق من صحة البيانات
+            // Validate data
             $validator = Validator::make($request->all(), [
                 'full_name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email',
@@ -95,7 +95,7 @@ class StudentController extends Controller
                 'city' => 'required|string|max:255',
                 'class_id' => 'required|exists:classes,id',
                 'section_id' => 'required|exists:sections,id',
-                'parent_id' => 'required|exists:parents,id', // الولي موجود مسبقاً
+                'parent_id' => 'required|exists:parents,id',
                 'comment' => 'nullable|string',
             ]);
 
@@ -108,11 +108,11 @@ class StudentController extends Controller
 
             DB::beginTransaction();
 
-            // توليد اسم المستخدم وكلمة المرور
+            // Generate username and password
             $userName = User::generateUserName('student', $request->full_name);
             $newPassword = User::generatePassword();
 
-            // إنشاء حساب المستخدم للطالب فقط
+            // Create user account for student only
             $user = User::create([
                 'full_name' => $request->full_name,
                 'user_name' => $userName,
@@ -121,14 +121,14 @@ class StudentController extends Controller
                 'user_type' => 'student',
             ]);
 
-            // إنشاء بيانات الطالب وربطه بالولي الموجود
+            // Create student data and link to existing parent
             $student = Student::create([
                 'birth_date' => $request->birth_date,
                 'comment' => $request->comment,
                 'gender' => $request->gender,
                 'residential_address' => $request->residential_address,
                 'city' => $request->city,
-                'parent_id' => $request->parent_id, // استخدام الولي الموجود
+                'parent_id' => $request->parent_id,
                 'section_id' => $request->section_id,
                 'class_id' => $request->class_id,
                 'user_id' => $user->id,
@@ -136,7 +136,7 @@ class StudentController extends Controller
 
             DB::commit();
 
-            // جلب بيانات الولي لعرضها في الرد
+            // Get parent data to display in response
             $parent = Parente::with('user')->find($request->parent_id);
 
             return response()->json([
@@ -220,7 +220,7 @@ class StudentController extends Controller
                 'subjects' => $student->subjects->map(function ($subject) {
                     return [
                         'id' => $subject->id,
-                        'name' => $subject->subject_name,
+                        'name' => $subject->name,
                         'mark' => $subject->pivot->mark,
                         'exam_type' => $subject->pivot->exam_type,
                         'date' => $subject->pivot->date,
@@ -249,9 +249,6 @@ class StudentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         try {
@@ -272,7 +269,7 @@ class StudentController extends Controller
                 'city' => 'sometimes|string|max:255',
                 'class_id' => 'sometimes|exists:classes,id',
                 'section_id' => 'sometimes|exists:sections,id',
-                'parent_id' => 'sometimes|exists:parents,id', // إضافة إمكانية تغيير الولي
+                'parent_id' => 'sometimes|exists:parents,id',
                 'comment' => 'nullable|string',
             ]);
 
@@ -285,7 +282,7 @@ class StudentController extends Controller
 
             DB::beginTransaction();
 
-            // تحديث بيانات المستخدم (الاسم فقط، بدون الإيميل)
+            // Update user data (name only, without email)
             if ($request->has('full_name')) {
                 $user = User::find($student->user_id);
                 if ($user) {
@@ -294,7 +291,7 @@ class StudentController extends Controller
                 }
             }
 
-            // تحديث بيانات الطالب
+            // Update student data
             $student->update($request->only([
                 'birth_date',
                 'comment',
@@ -343,7 +340,7 @@ class StudentController extends Controller
 
             DB::beginTransaction();
 
-            // حذف الطالب
+            // Delete student
             $student->delete();
 
             DB::commit();
@@ -364,10 +361,7 @@ class StudentController extends Controller
     }
 
     /**
-     * الحصول على جميع الآباء (للاستخدام في dropdown عند إنشاء الطالب)
-     */
-    /**
-     * الحصول على جميع الآباء (للاستخدام في dropdown عند إنشاء الطالب)
+     * Get all parents (for use in dropdown when creating student)
      */
     public function getParentsList()
     {
@@ -375,8 +369,7 @@ class StudentController extends Controller
             $parents = DB::table('parents')->select(
                 'id',
                 'full_name_father as father_name',
-                'full_name_mother as mother_name',
-
+                'full_name_mother as mother_name'
             )->get();
 
             return response()->json([
@@ -393,9 +386,8 @@ class StudentController extends Controller
         }
     }
 
-
     /**
-     * الحصول على جميع الشعب (للاستخدام في dropdown عند إنشاء الطالب)
+     * Get all sections (for use in dropdown when creating student)
      */
     public function getSectionsList()
     {
@@ -421,7 +413,7 @@ class StudentController extends Controller
     }
 
     /**
-     * الحصول على جميع الصفوف (للاستخدام في dropdown عند إنشاء الطالب)
+     * Get all classes (for use in dropdown when creating student)
      */
     public function getClassesList()
     {
@@ -444,6 +436,7 @@ class StudentController extends Controller
             ], 500);
         }
     }
+
     /**
      * Get students by class
      */
