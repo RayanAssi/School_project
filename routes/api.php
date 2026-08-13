@@ -6,6 +6,7 @@ use App\Http\Controllers\Dashboard\StudentController;
 use App\Http\Controllers\Dashboard\TeacherController;
 use App\Http\Controllers\Dashboard\UserController;
 use App\Http\Controllers\Dashboard\ParentController;
+use App\Http\Controllers\Dashboard\SubjectController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -26,7 +27,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::resource('parents', ParentController::class);
 
     //Auth
-    Route::post('/logout', [AuthController::class, 'logout']);    
+    Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/logout-all', [AuthController::class, 'logoutAllDevices']);
 
     //Class Routes
@@ -48,5 +49,17 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     // Student Filters
     Route::get('students/class/{classId}', [StudentController::class, 'getStudentsByClass']);
     Route::get('students/section/{sectionId}', [StudentController::class, 'getStudentsBySection']);
+
+    // Subject Routes
+    Route::get('subjects/search', [SubjectController::class, 'search'])->name('subjects.search');
+    Route::get('subjects/class/{classId}', [SubjectController::class, 'getSubjectsByClass'])->name('subjects.by.class');
+    Route::get('subjects/mark-range', [SubjectController::class, 'getSubjectsByMarkRange'])->name('subjects.mark.range');
+    
+    // Teacher assignment routes
+    Route::post('subjects/assign-teacher', [SubjectController::class, 'assignTeacher'])->name('subjects.assign.teacher');
+    Route::post('subjects/remove-teacher', [SubjectController::class, 'removeTeacher'])->name('subjects.remove.teacher');
+    Route::get('subjects/{subjectId}/teachers', [SubjectController::class, 'getSubjectTeachers'])->name('subjects.teachers');
+    
+    Route::resource('subjects', SubjectController::class);
 
 });
