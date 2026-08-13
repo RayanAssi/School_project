@@ -62,10 +62,11 @@ class SectionController extends Controller
         if (isset($validated['teacher_ids']) && !empty($validated['teacher_ids'])) {
             $section->teachers()->attach($validated['teacher_ids']);
         }
+        $section->load(['class', 'teachers'])->loadCount(['teachers', 'students']);
 
         return response()->json([
             'message' => 'Section created successfully',
-            'data' => $section->load(['class', 'teachers']),
+            'data' => $section,
         ], 201);
     }
     //edit section
@@ -101,10 +102,11 @@ class SectionController extends Controller
                 $section->teachers()->sync($validated['teacher_ids']);
             }
         }
+        $section->load(['class', 'teachers'])->loadCount(['teachers', 'students']);
 
         return response()->json([
             'message' => 'Section updated successfully',
-            'data' => $section->load(['class', 'teachers']),
+            'data' => $section,
         ], 200);
     }
     //show section with its class and teachers
@@ -139,20 +141,16 @@ class SectionController extends Controller
     //statistics of sections, teachers and students
     public function statistics()
     {
+        $sections = Section::withCount(['teachers', 'students'])->get();
+
         $statistics = [
-            'total_sections' => Section::count(),
-            'total_teachers' => Section::withCount('teachers')->get()->sum('teachers_count'),
-            'total_students' => Section::withCount('students')->get()->sum('students_count'),
-            'avg_teachers_per_section' => Section::count() > 0
-                ? round(Section::withCount('teachers')->get()->avg('teachers_count'), 2)
-                : 0,
-            'avg_students_per_section' => Section::count() > 0
-                ? round(Section::withCount('students')->get()->avg('students_count'), 2)
-                : 0,
-            'max_teachers_in_section' => Section::withCount('teachers')->get()->max('teachers_count') ?? 0,
-            'max_students_in_section' => Section::withCount('students')->get()->max('students_count') ?? 0,
-            'min_teachers_in_section' => Section::withCount('teachers')->get()->min('teachers_count') ?? 0,
-            'min_students_in_section' => Section::withCount('students')->get()->min('students_count') ?? 0,
+            'total_sections' => $sections->count(),
+            'total_teachers' => $sections->sum('teachers_count'),
+            'total_students' => $sections->sum('students_count'),
+            'max_teachers_in_section' => $sections->max('teachers_count') ?? 0,
+            'max_students_in_section' => $sections->max('students_count') ?? 0,
+            'min_teachers_in_section' => $sections->min('teachers_count') ?? 0,
+            'min_students_in_section' => $sections->min('students_count') ?? 0,
         ];
 
         return response()->json([

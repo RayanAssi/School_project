@@ -23,6 +23,6 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::post('/sections', [SectionController::class, 'store']);
     Route::put('/sections/{id}', [SectionController::class, 'update']);
     Route::delete('/sections/{id}', [SectionController::class, 'destroy']);
-    Route::get('/sections/{id}', [SectionController::class, 'show']);
     Route::get('/sections/statistics', [SectionController::class, 'statistics']);
+    Route::get('/sections/{id}', [SectionController::class, 'show']);
 });
