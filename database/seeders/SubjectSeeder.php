@@ -14,7 +14,7 @@ class SubjectSeeder extends Seeder
     public function run(): void
     {
         //
-        Subject::create([
+        /* Subject::create([
             'name' => 'اللغة الإنجليزية',
             'comment' => 'لغة أجنبية',
             'full_mark' => 400.00,
@@ -27,6 +27,6 @@ class SubjectSeeder extends Seeder
             'comment' => 'المادة الأساسية',
             'full_mark' => 600.00,
             'class_id' => 2,
-        ]);
+        ]); */
     }
 }
