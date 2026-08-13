@@ -4,274 +4,356 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Teacher;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 
 class TeacherController extends Controller
 {
     /**
-     * عرض قائمة جميع المعلمين
+     * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        $query = Teacher::with('user');
+        try {
+            $query = Teacher::with(['user']);
 
-        // فلترة حسب الجنس
-        if ($request->has('gender') && $request->gender) {
-            $query->where('gender', $request->gender);
+            //filter by gender 
+            if ($request->has('gender') && $request->gender) {
+                $query->where('gender', $request->gender);
+            }
+
+            $teachers = $query->get();
+
+            $formattedTeachers = $teachers->map(function ($teacher) {
+                return [
+                    'id' => $teacher->id,
+                    'user_name' => $teacher->user->user_name ?? null,
+                    'email' => $teacher->user->email ?? null,
+                    'full_name' => $teacher->user->full_name ?? null,
+                    'gender' => $teacher->gender,
+                    'phone_number' => $teacher->phone_number,
+                    'comment' => $teacher->comment,
+                    'created_at' => $teacher->created_at,
+                    'updated_at' => $teacher->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedTeachers,
+                'total' => $formattedTeachers->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات المدرسين',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // فلترة حسب الدور
-        if ($request->has('role') && $request->role) {
-            $query->where('role', $request->role);
-        }
-
-        // بحث حسب رقم الهاتف
-        if ($request->has('search') && $request->search) {
-            $query->where('phone_number', 'LIKE', '%' . $request->search . '%');
-        }
-
-        $teachers = $query->latest()->paginate(15);
-
-        return response()->json([
-            'success' => true,
-            'data' => $teachers,
-            'message' => 'تم جلب البيانات بنجاح'
-        ]);
     }
 
     /**
-     * إنشاء معلم جديد
+     * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
-        // التحقق من البيانات
-        $validator = validator($request->all(), [
-            'gender' => 'required|in:ذكر,أنثى',
-            'comment' => 'nullable|string|max:255',
-            'phone_number' => 'required|string|max:20|unique:teachers,phone_number',
-            'role' => 'required|in:مدرس,موجه',
-            'user_id' => 'required|exists:users,id'
-        ], [
-            'gender.required' => 'حقل الجنس مطلوب',
-            'gender.in' => 'الجنس يجب أن يكون ذكر أو أنثى',
-            'phone_number.required' => 'رقم الهاتف مطلوب',
-            'phone_number.unique' => 'رقم الهاتف مستخدم من قبل',
-            'role.required' => 'حقل الدور مطلوب',
-            'role.in' => 'الدور يجب أن يكون مدرس أو موجه',
-            'user_id.required' => 'المستخدم مطلوب',
-            'user_id.exists' => 'المستخدم غير موجود'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
         try {
+            $validator = Validator::make($request->all(), [
+                'full_name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email',
+                'gender' => 'required|in:ذكر,أنثى',
+                'phone_number' => 'required|string|unique:teachers,phone_number',
+                'comment' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
             DB::beginTransaction();
 
-            $teacher = Teacher::create($validator->validated());
+            $userName = User::generateUserName('teacher', $request->full_name);
+            $newPassword = User::generatePassword();
+
+            // create user
+            $user = User::create([
+                'full_name' => $request->full_name,
+                'user_name' => $userName,
+                'email' => $request->email,
+                'password' => Hash::make($newPassword),
+                'user_type' => 'teacher',
+            ]);
+
+            // create teacher
+            $teacher = Teacher::create([
+                'gender' => $request->gender,
+                'comment' => $request->comment,
+                'phone_number' => $request->phone_number,
+                'user_id' => $user->id,
+            ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'data' => $teacher->load('user'),
-                'message' => 'تم إضافة المعلم بنجاح'
+                'message' => 'تم إنشاء المدرس بنجاح',
+                'data' => [
+                    'teacher' => [
+                        'id' => $teacher->id,
+                        'full_name' => $user->full_name,
+                        'user_name' => $userName,
+                        'email' => $user->email,
+                        'password' => $newPassword,
+                        'gender' => $teacher->gender,
+                        'phone_number' => $teacher->phone_number,
+                        'comment' => $teacher->comment,
+                    ]
+                ]
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء إضافة المعلم',
+                'message' => 'حدث خطأ أثناء إنشاء المدرس',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * عرض بيانات معلم محدد
+     * Display the specified resource.
      */
-    public function show($id)
+    public function show(string $id)
     {
-        $teacher = Teacher::with('user')->find($id);
-
-        if (!$teacher) {
-            return response()->json([
-                'success' => false,
-                'message' => 'المعلم غير موجود'
-            ], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $teacher,
-            'message' => 'تم جلب بيانات المعلم بنجاح'
-        ]);
-    }
-
-    /**
-     * تحديث بيانات معلم
-     */
-    public function update(Request $request, $id)
-    {
-        $teacher = Teacher::find($id);
-
-        if (!$teacher) {
-            return response()->json([
-                'success' => false,
-                'message' => 'المعلم غير موجود'
-            ], 404);
-        }
-
-        // التحقق من البيانات
-        $validator = validator($request->all(), [
-            'gender' => 'sometimes|in:ذكر,أنثى',
-            'comment' => 'nullable|string|max:255',
-            'phone_number' => [
-                'sometimes',
-                'string',
-                'max:20',
-                Rule::unique('teachers', 'phone_number')->ignore($id)
-            ],
-            'role' => 'sometimes|in:مدرس,موجه',
-            'user_id' => 'sometimes|exists:users,id'
-        ], [
-            'gender.in' => 'الجنس يجب أن يكون ذكر أو أنثى',
-            'phone_number.unique' => 'رقم الهاتف مستخدم من قبل',
-            'role.in' => 'الدور يجب أن يكون مدرس أو موجه',
-            'user_id.exists' => 'المستخدم غير موجود'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
         try {
-            DB::beginTransaction();
+            $teacher = Teacher::with(['user'])->find($id);
 
-            $teacher->update($validator->validated());
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المدرس غير موجود'
+                ], 404);
+            }
 
-            DB::commit();
+            $teacherData = [
+                'id' => $teacher->id,
+                'user_name' => $teacher->user->user_name ?? null,
+                'email' => $teacher->user->email ?? null,
+                'full_name' => $teacher->user->full_name ?? null,
+                'gender' => $teacher->gender,
+                'phone_number' => $teacher->phone_number,
+                'comment' => $teacher->comment,
+                'created_at' => $teacher->created_at,
+                'updated_at' => $teacher->updated_at,
+            ];
 
             return response()->json([
                 'success' => true,
-                'data' => $teacher->fresh()->load('user'),
-                'message' => 'تم تحديث بيانات المعلم بنجاح'
-            ]);
+                'data' => $teacherData
+            ], 200);
         } catch (\Exception $e) {
-            DB::rollBack();
-
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء تحديث المعلم',
+                'message' => 'حدث خطأ أثناء جلب بيانات المدرس',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * حذف معلم
+     * Update the specified resource in storage.
      */
-    public function destroy($id)
+    public function update(Request $request, string $id)
     {
-        $teacher = Teacher::find($id);
-
-        if (!$teacher) {
-            return response()->json([
-                'success' => false,
-                'message' => 'المعلم غير موجود'
-            ], 404);
-        }
-
         try {
+            $teacher = Teacher::find($id);
+
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المدرس غير موجود'
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'full_name' => 'sometimes|string|max:255',
+                'gender' => 'sometimes|in:ذكر,أنثى',
+                'phone_number' => 'sometimes|string|unique:teachers,phone_number,' . $id,
+                'comment' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
             DB::beginTransaction();
 
+            // تحديث بيانات المستخدم (الاسم فقط)
+            if ($request->has('full_name')) {
+                $user = User::find($teacher->user_id);
+                if ($user) {
+                    $user->full_name = $request->full_name;
+                    $user->save();
+                }
+            }
+
+            // تحديث بيانات المدرس
+            $teacher->update($request->only([
+                'gender',
+                'phone_number',
+                'comment'
+            ]));
+
+            DB::commit();
+
+            $updatedTeacher = Teacher::with(['user'])->find($id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تحديث بيانات المدرس بنجاح',
+                'data' => $updatedTeacher
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تحديث بيانات المدرس',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+    {
+        try {
+            $teacher = Teacher::with('user')->find($id);
+
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المدرس غير موجود'
+                ], 404);
+            }
+
+            DB::beginTransaction();
+
+            // حذف المستخدم المرتبط
+            if ($teacher->user) {
+                $teacher->user->delete();
+            }
+
+            // حذف المدرس
             $teacher->delete();
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'تم حذف المعلم بنجاح'
-            ]);
+                'message' => 'تم حذف المدرس والمستخدم المرتبط به بنجاح'
+            ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء حذف المعلم',
+                'message' => 'حدث خطأ أثناء حذف المدرس',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
-
     /**
-     * الحصول على إحصائيات المعلمين
+     * Get teachers statistics
      */
     public function statistics()
     {
-        $stats = [
-            'total' => Teacher::count(),
-            'males' => Teacher::where('gender', 'ذكر')->count(),
-            'females' => Teacher::where('gender', 'أنثى')->count(),
-            'teachers' => Teacher::where('role', 'مدرس')->count(),
-            'supervisors' => Teacher::where('role', 'موجه')->count(),
-        ];
+        try {
+            $totalTeachers = Teacher::count();
+            $maleTeachers = Teacher::where('gender', 'ذكر')->count();
+            $femaleTeachers = Teacher::where('gender', 'أنثى')->count();
 
-        return response()->json([
-            'success' => true,
-            'data' => $stats,
-            'message' => 'تم جلب الإحصائيات بنجاح'
-        ]);
-    }
-
-    public function search(Request $request)
-    {
-        $query = Teacher::with('user');
-
-        if ($request->has('phone_number') && $request->phone_number) {
-            $query->where('phone_number', 'LIKE', '%' . $request->phone_number . '%');
-        }
-
-        if ($request->has('gender') && $request->gender) {
-            $query->where('gender', $request->gender);
-        }
-
-        if ($request->has('role') && $request->role) {
-            $query->where('role', $request->role);
-        }
-
-        if ($request->has('comment') && $request->comment) {
-            $query->where('comment', 'LIKE', '%' . $request->comment . '%');
-        }
-
-        $teachers = $query->get();
-
-        // ✅ التحقق: إذا ما في نتائج
-        if ($teachers->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $totalTeachers,
+                    'male' => $maleTeachers,
+                    'female' => $femaleTeachers,
+                ]
+            ], 200);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'data' => [],
-                'count' => 0,
-                'message' => 'لا يوجد نتائج مطابقة للبحث'
-            ], 404); // أو 200 حسب رغبتك
+                'message' => 'حدث خطأ أثناء جلب الإحصائيات',
+                'error' => $e->getMessage()
+            ], 500);
         }
+    }
 
-        return response()->json([
-            'success' => true,
-            'count' => $teachers->count(),
-            'data' => $teachers,
-            'message' => 'تم جلب نتائج البحث بنجاح'
-        ]);
+    /**
+     * Search teachers
+     */
+    public function search(Request $request)
+    {
+        try {
+            $query = Teacher::with(['user']);
+
+            if ($request->has('q') && $request->q) {
+                $searchTerm = $request->q;
+                $query->whereHas('user', function ($q) use ($searchTerm) {
+                    $q->where('full_name', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('user_name', 'LIKE', "%{$searchTerm}%")
+                        ->orWhere('email', 'LIKE', "%{$searchTerm}%");
+                })->orWhere('phone_number', 'LIKE', "%{$searchTerm}%");
+            }
+
+            $teachers = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $teachers,
+                'total' => $teachers->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء البحث عن المدرسين',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get teachers by gender
+     */
+    public function getTeachersByGender($gender)
+    {
+        try {
+            $teachers = Teacher::with(['user'])
+                ->where('gender', $gender)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $teachers,
+                'total' => $teachers->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب المدرسين حسب الجنس',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
