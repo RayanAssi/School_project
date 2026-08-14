@@ -9,6 +9,9 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     //User
     Route::get('/show_profile', [UserController::class, 'show']);
     Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users/{id}/reset-username', [UserController::class, 'resetUserName']);
+    Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
+    
 
     //Administrator
     Route::get('/admins', [AdministratorController::class, 'index']);
