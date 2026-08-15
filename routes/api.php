@@ -61,15 +61,13 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('files/{id}/download', [FileController::class, 'download'])->name('files.download');
     Route::get('files/subject/{subjectId}', [FileController::class, 'getFilesBySubject'])->name('files.by-subject');
     
-    // File Routes (Teachers only - with CheckRole middleware)
-    /* Route::middleware(['checkRole'])->group(function () {
+    // File Routes (Teachers only - with CheckTeacher middleware)
+    Route::middleware(['checkTeacher'])->group(function () {
         Route::post('files', [FileController::class, 'store'])->name('files.store');
         Route::put('files/{id}', [FileController::class, 'update'])->name('files.update');
         Route::delete('files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
-    }); */
-    Route::post('files', [FileController::class, 'store'])->name('files.store');
-        Route::put('files/{id}', [FileController::class, 'update'])->name('files.update');
-        Route::delete('files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
+    });
+    
 
     // Subject Routes
     Route::get('subjects/search', [SubjectController::class, 'search'])->name('subjects.search');

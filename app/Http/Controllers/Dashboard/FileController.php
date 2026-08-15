@@ -17,37 +17,33 @@ class FileController extends Controller
      * Get list of files with optional subject filter
      * GET /api/files?subject_id=1
      */
-    public function index(Request $request)
-    {
-        try {
-            $query = File::with(['subject:id,name']);
+    public function index()
+{
+    try {
+        $files = File::with(['subject:id,name'])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-            // Filter by subject
-            if ($request->has('subject_id') && $request->subject_id) {
-                $query->where('subject_id', $request->subject_id);
-            }
+        // Add download URL to each file
+        $files->transform(function ($file) {
+            $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
+            return $file;
+        });
 
-            $files = $query->orderBy('created_at', 'desc')->paginate(15);
-
-            // Add download URL to each file
-            $files->getCollection()->transform(function ($file) {
-                $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
-                return $file;
-            });
-
-            return response()->json([
-                'success' => true,
-                'data' => $files,
-                'message' => 'Files retrieved successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve files',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $files,
+            'total' => $files->count(),
+            'message' => 'Files retrieved successfully'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to retrieve files',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Upload a new file (teachers only)
