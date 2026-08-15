@@ -323,40 +323,48 @@ class StudentSubjectController extends Controller
      * Get student's grades for all subjects
      */
     public function getStudentGrades($studentId)
-    {
-        $student = Student::find($studentId);
+{
+    $student = Student::with('user')->find($studentId);
 
-        if (!$student) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'الطالب غير موجود'
-            ], 404);
-        }
-
-        $grades = StudentSubject::with('subject')
-            ->where('student_id', $studentId)
-            ->get()
-            ->groupBy('exam_type');
-
-        $allMarks = StudentSubject::where('student_id', $studentId)
-            ->whereNotNull('mark')
-            ->pluck('mark');
-
-        $average = $allMarks->count() > 0 ? $allMarks->avg() : null;
-
+    if (!$student) {
         return response()->json([
-            'status' => 'success',
-            'data' => [
-                'student' => $student,
-                'grades' => $grades,
-                'average' => $average,
-                'total_subjects' => $grades->flatten()->count(),
-                'passed_subjects' => $grades->flatten()->filter(function ($item) {
-                    return $item->mark >= 50;
-                })->count()
-            ]
-        ]);
+            'status' => 'error',
+            'message' => 'الطالب غير موجود'
+        ], 404);
     }
+
+    $grades = StudentSubject::with('subject')
+        ->where('student_id', $studentId)
+        ->get()
+        ->groupBy('exam_type');
+
+    $allMarks = StudentSubject::where('student_id', $studentId)
+        ->whereNotNull('mark')
+        ->pluck('mark');
+
+    $average = $allMarks->count() > 0 ? $allMarks->avg() : null;
+
+    return response()->json([
+        'status' => 'success',
+        'data' => [
+            'student' => [
+                'id' => $student->id,
+                'full_name' => $student->user->full_name ?? null,
+                'user_name' => $student->user->user_name ?? null,
+                'email' => $student->user->email ?? null,
+                'gender' => $student->gender,
+                'class_id' => $student->class_id,
+                'section_id' => $student->section_id,
+            ],
+            'grades' => $grades,
+            'average' => $average,
+            'total_subjects' => $grades->flatten()->count(),
+            'passed_subjects' => $grades->flatten()->filter(function ($item) {
+                return $item->mark >= 50;
+            })->count()
+        ]
+    ]);
+}
 
     /**
      * Get subject statistics
@@ -422,7 +430,7 @@ class StudentSubjectController extends Controller
             ->get();
 
         $export = [
-            'student_name' => $student->name,
+            'full_name' => $student->user->full_name ?? null,
             'student_id' => $student->id,
             'export_date' => now()->format('Y-m-d H:i:s'),
             'grades' => $grades->map(function ($grade) {
@@ -618,8 +626,8 @@ class StudentSubjectController extends Controller
         $report = [
             'student_info' => [
                 'id' => $student->id,
-                'name' => $student->name,
-                'email' => $student->email,
+                'full_name' => $student->user->full_name ?? null,
+                'email' => $student->user->email ?? null,
                 'generated_at' => now()->format('Y-m-d H:i:s')
             ],
             'subjects' => $grades->map(function ($grade) {
