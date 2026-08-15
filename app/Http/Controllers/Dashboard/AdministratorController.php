@@ -18,7 +18,6 @@ class AdministratorController extends Controller
     {
         $query = Administrator::with('user');
 
-        // فلترة حسب الدور
         if ($request->has('role') && $request->role) {
             $query->where('role', $request->role);
         }
@@ -46,11 +45,10 @@ class AdministratorController extends Controller
             ], 422);
         }
 
-        //  توليد userName و password
+        //generate userName & password
         $userName = User::generateUserName('admin', $request->full_name);
         $password = User::generatePassword();
 
-        //  إنشاء المستخدم
         $user = User::create([
             'user_name' => $userName,
             'full_name' => $request->full_name,
@@ -66,10 +64,9 @@ class AdministratorController extends Controller
             'user_id' => $user->id,
             'role' => 'admin_assistant',
         ]);
-        $responseData['id'] = $user->id;  // أو $admin->id حسب ما تريد
+        $responseData['id'] = $user->id;
         $responseData['role'] = $admin->role;
 
-        // ثم إضافة user في النهاية
         $responseData['user'] = $user;
 
         return response()->json($responseData, 201);
@@ -77,7 +74,6 @@ class AdministratorController extends Controller
 
     public function update(Request $request, $id)
     {
-        // البحث عن الـ Administrator باستخدام الـ id المرسل
         $admin = Administrator::find($id);
         if (!$admin) {
             return response()->json([
@@ -85,7 +81,6 @@ class AdministratorController extends Controller
                 'message' => 'الادمن غير موجود'
             ], 404);
         }
-        // جلب المستخدم المرتبط بهذا الادمن
         $user = User::find($admin->user_id);
         if (!$user) {
             return response()->json([
@@ -94,7 +89,6 @@ class AdministratorController extends Controller
             ], 404);
         }
 
-        // التحقق من صحة البيانات
         $validator = Validator::make($request->all(), [
             'full_name' => 'sometimes|string|max:255',
             'email' => 'sometimes|email|unique:users,email,' . $user->id,
@@ -121,7 +115,6 @@ class AdministratorController extends Controller
         if ($request->has('email')) {
             $updateData['email'] = $request->email;
         }
-        // تحديث المستخدم
         $user->update($updateData);
 
         return response()->json([
@@ -162,7 +155,7 @@ class AdministratorController extends Controller
             'message' => 'تم حذف المستخدم والادمن بنجاح'
         ], 200);
     }
-    // اعادة توليد user_name 
+    //generate userName
     public function resetUserName($id)
     {
         $admin = Administrator::find($id);
@@ -193,7 +186,7 @@ class AdministratorController extends Controller
             'admin_id' => $admin->id
         ]);
     }
-    // إعادة تعيين كلمة المرور (توليد تلقائي)
+    // generate password
     public function resetPassword($id)
     {
         $admin = Administrator::find($id);

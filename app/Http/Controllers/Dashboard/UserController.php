@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
-    //عرض كل المستخدمين
+    //show all users
     public function index()
     {
         $users = User::paginate(15);
@@ -20,7 +20,7 @@ class UserController extends Controller
             'data' => $users
         ]);
     }
-    //عرض معلومات المستخدم الحالي 
+    //show current authenticated user details
     public function show()
     {
         return response()->json([
