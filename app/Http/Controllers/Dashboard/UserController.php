@@ -11,9 +11,7 @@ use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
 {
-    /**
-     * عرض كل المستخدمين
-     */
+    //show all users 
     public function index()
     {
         $users = User::paginate(15);
@@ -25,9 +23,7 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * عرض معلومات المستخدم الحالي 
-     */
+    //show the authenticated user information
     public function show()
     {
         return response()->json([
@@ -38,14 +34,10 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * إعادة تعيين اسم المستخدم (توليد تلقائي)
-     * POST /api/dashboard/users/{id}/reset-username
-     */
+    //regenerate username 
     public function resetUserName($id)
     {
         try {
-            // التحقق من الصلاحية (admin فقط)
             if (Auth::user()->user_type !== 'admin') {
                 return response()->json([
                     'success' => false,
@@ -62,7 +54,6 @@ class UserController extends Controller
                 ], 404);
             }
 
-            // توليد اسم مستخدم جديد حسب نوع المستخدم
             $newUserName = User::generateUserName($user->user_type, $user->full_name);
             $user->user_name = $newUserName;
             $user->save();
@@ -88,14 +79,10 @@ class UserController extends Controller
         }
     }
 
-    /**
-     * إعادة تعيين كلمة المرور (توليد تلقائي)
-     * POST /api/dashboard/users/{id}/reset-password
-     */
+    //reset password for a user
     public function resetPassword($id)
     {
         try {
-            // التحقق من الصلاحية (admin فقط)
             if (Auth::user()->user_type !== 'admin') {
                 return response()->json([
                     'success' => false,
@@ -112,7 +99,6 @@ class UserController extends Controller
                 ], 404);
             }
 
-            // توليد كلمة سر جديدة
             $newPassword = User::generatePassword();
             $user->password = Hash::make($newPassword);
             $user->save();
