@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+        'firebase' => [
+    'credentials' => storage_path('app/firebase-credentials.json'),
+    'database_url' => env('FIREBASE_DATABASE_URL', 'https://school-r26rf-default-rtdb.firebaseio.com/'),
+],
+
 ];
