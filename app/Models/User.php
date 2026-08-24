@@ -25,6 +25,7 @@ class User extends Authenticatable
         'email',
         'password',
         'device_token',
+        'fcm_tokens',
         'user_type',
     ];
 
@@ -48,7 +49,6 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'device_token' => 'array',
         ];
     }
 
@@ -80,27 +80,27 @@ class User extends Authenticatable
             ->withPivot('is_read')
             ->withTimestamps();
     }
-
-    public function addDeviceToken($token)
+    //add fcm token
+    public function setFcmToken($token)
     {
-        $tokens = $this->device_token ?? [];
-        if (!in_array($token, $tokens)) {
-            $tokens[] = $token;
-            $this->device_token = $tokens;
-            $this->save();
-        }
-        return $this;
-    }
-
-    // دالة مساعدة لحذف Token معين
-    public function removeDeviceToken($token)
-    {
-        $tokens = $this->device_token ?? [];
-        $tokens = array_filter($tokens, fn($t) => $t !== $token);
-        $this->device_token = array_values($tokens);
+        $this->fcm_token = $token;
         $this->save();
         return $this;
     }
+    //delete fcm token
+    public function removeFcmToken()
+    {
+        $this->fcm_token = null;
+        $this->save();
+        return $this;
+    }
+    //test if user has fcm token
+    public function hasFcmToken()
+    {
+        return !is_null($this->fcm_token);
+    }
+    // دالة مساعدة لحذف Token معين
+    
     const TYPE_STUDENT = 'student';
     const TYPE_PARENT = 'parent';
     const TYPE_TEACHER = 'teacher';

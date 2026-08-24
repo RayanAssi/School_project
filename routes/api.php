@@ -32,7 +32,6 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
     //Auth
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/logout-all', [AuthController::class, 'logoutAllDevices']);
 
     //Class Routes
     Route::resource('classes', ClassController::class);

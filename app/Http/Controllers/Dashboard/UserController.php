@@ -30,7 +30,6 @@ class UserController extends Controller
             'user' => Auth::user(),
             'email' => Auth::user()->email,
             'user_type' => Auth::user()->user_type,
-            'device_count' => count(Auth::user()->device_token ?? []),
         ]);
     }
 

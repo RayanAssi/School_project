@@ -16,6 +16,7 @@ class AuthController extends Controller
         $request->validate([
             'user_name' => 'required|string',
             'password' => 'required|string',
+            'fcm_token' => 'nullable|string',
         ]);
 
         $user = User::where('user_name', $request->user_name)->first();
@@ -26,10 +27,9 @@ class AuthController extends Controller
             ]);
         }
 
-        if ($request->filled('device_token')) {
-            $user->addDeviceToken($request->device_token);
+        if ($request->filled('fcm_token')) {
+            $user->setFcmToken($request->fcm_token);
         }
-
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -43,7 +43,7 @@ class AuthController extends Controller
                 'full_name' => $user->full_name,
                 'email' => $user->email,
                 'user_type' => $user->user_type,
-                'device_count' => count($user->device_token ?? []),
+                'has_device' => $user->hasFcmToken(),
             ]
         ]);
     }
@@ -58,32 +58,11 @@ class AuthController extends Controller
             ], 401);
         }
         $user->currentAccessToken()->delete();
-        if ($request->has('device_token')) {
-            $user->removeDeviceToken($request->device_token);
-        }
+        $user->removeFcmToken();
 
         return response()->json([
             'message' => 'Logged out successfully'
         ]);
     }
 
-    public function logoutAllDevices(Request $request)
-{
-    $user = $request->user();
-    
-    if (!$user) {
-        return response()->json([
-            'message' => 'Unauthenticated'
-        ], 401);
-    }
-
-    $user->tokens()->delete();
-    $user->update([
-        'device_token' => null
-    ]);
-
-    return response()->json([
-        'message' => 'Logged out from all devices successfully'
-    ]);
-}
 }
