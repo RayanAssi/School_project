@@ -71,6 +71,7 @@ class StudentSubjectController extends Controller
             ]
         ]);
     }
+
     /**
      * Store a newly created resource in storage.
      */
@@ -97,7 +98,7 @@ class StudentSubjectController extends Controller
                 'nullable',
                 'numeric',
                 'min:0',
-                'max:' . $subject->full_mark, // التحقق من أن العلامة لا تتجاوز full_mark
+                'max:' . $subject->full_mark,
                 function ($attribute, $value, $fail) use ($subject) {
                     if ($value !== null && $value > $subject->full_mark) {
                         $fail("العلامة لا يمكن أن تتجاوز " . $subject->full_mark . " درجة");
@@ -242,6 +243,27 @@ class StudentSubjectController extends Controller
      */
     public function statistics(Request $request)
     {
+        // جلب جميع المواد مع علاماتها الكاملة
+        $subjects = Subject::all()->keyBy('id');
+        
+        $studentSubjects = StudentSubject::whereNotNull('mark')->get();
+        
+        // حساب النجاح والرسوب بناءً على 40% من العلامة الكاملة
+        $passedCount = 0;
+        $failedCount = 0;
+        
+        foreach ($studentSubjects as $record) {
+            $subject = $subjects->get($record->subject_id);
+            if ($subject) {
+                $passingMark = $subject->full_mark * 0.4; // 40% من العلامة الكاملة
+                if ($record->mark >= $passingMark) {
+                    $passedCount++;
+                } else {
+                    $failedCount++;
+                }
+            }
+        }
+
         $stats = [
             'total_records' => StudentSubject::count(),
             'total_students' => StudentSubject::distinct('student_id')->count(),
@@ -252,8 +274,8 @@ class StudentSubjectController extends Controller
             'average_mark' => StudentSubject::whereNotNull('mark')->avg('mark'),
             'max_mark' => StudentSubject::whereNotNull('mark')->max('mark'),
             'min_mark' => StudentSubject::whereNotNull('mark')->min('mark'),
-            'passed_count' => StudentSubject::where('mark', '>=', 50)->count(),
-            'failed_count' => StudentSubject::where('mark', '<', 50)->whereNotNull('mark')->count(),
+            'passed_count' => $passedCount,
+            'failed_count' => $failedCount,
             'records_by_month' => StudentSubject::selectRaw('MONTH(date) as month, YEAR(date) as year, COUNT(*) as count')
                 ->groupBy('year', 'month')
                 ->orderBy('year', 'desc')
@@ -319,52 +341,67 @@ class StudentSubjectController extends Controller
             ]
         ]);
     }
+
     /**
      * Get student's grades for all subjects
      */
     public function getStudentGrades($studentId)
-{
-    $student = Student::with('user')->find($studentId);
+    {
+        $student = Student::with('user')->find($studentId);
 
-    if (!$student) {
+        if (!$student) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'الطالب غير موجود'
+            ], 404);
+        }
+
+        $grades = StudentSubject::with('subject')
+            ->where('student_id', $studentId)
+            ->get()
+            ->groupBy('exam_type');
+
+        $allMarks = StudentSubject::where('student_id', $studentId)
+            ->whereNotNull('mark')
+            ->pluck('mark');
+
+        $average = $allMarks->count() > 0 ? $allMarks->avg() : null;
+
+        // حساب عدد المواد الناجحة والراسبة بناءً على 40%
+        $passedSubjects = 0;
+        $failedSubjects = 0;
+        
+        foreach ($grades->flatten() as $grade) {
+            if ($grade->subject) {
+                $passingMark = $grade->subject->full_mark * 0.4;
+                if ($grade->mark !== null && $grade->mark >= $passingMark) {
+                    $passedSubjects++;
+                } elseif ($grade->mark !== null) {
+                    $failedSubjects++;
+                }
+            }
+        }
+
         return response()->json([
-            'status' => 'error',
-            'message' => 'الطالب غير موجود'
-        ], 404);
+            'status' => 'success',
+            'data' => [
+                'student' => [
+                    'id' => $student->id,
+                    'full_name' => $student->user->full_name ?? null,
+                    'user_name' => $student->user->user_name ?? null,
+                    'email' => $student->user->email ?? null,
+                    'gender' => $student->gender,
+                    'class_id' => $student->class_id,
+                    'section_id' => $student->section_id,
+                ],
+                'grades' => $grades,
+                'average' => $average,
+                'total_subjects' => $grades->flatten()->count(),
+                'passed_subjects' => $passedSubjects,
+                'failed_subjects' => $failedSubjects
+            ]
+        ]);
     }
-
-    $grades = StudentSubject::with('subject')
-        ->where('student_id', $studentId)
-        ->get()
-        ->groupBy('exam_type');
-
-    $allMarks = StudentSubject::where('student_id', $studentId)
-        ->whereNotNull('mark')
-        ->pluck('mark');
-
-    $average = $allMarks->count() > 0 ? $allMarks->avg() : null;
-
-    return response()->json([
-        'status' => 'success',
-        'data' => [
-            'student' => [
-                'id' => $student->id,
-                'full_name' => $student->user->full_name ?? null,
-                'user_name' => $student->user->user_name ?? null,
-                'email' => $student->user->email ?? null,
-                'gender' => $student->gender,
-                'class_id' => $student->class_id,
-                'section_id' => $student->section_id,
-            ],
-            'grades' => $grades,
-            'average' => $average,
-            'total_subjects' => $grades->flatten()->count(),
-            'passed_subjects' => $grades->flatten()->filter(function ($item) {
-                return $item->mark >= 50;
-            })->count()
-        ]
-    ]);
-}
 
     /**
      * Get subject statistics
@@ -380,17 +417,28 @@ class StudentSubjectController extends Controller
             ], 404);
         }
 
+        $passingMark = $subject->full_mark * 0.4; // 40% من العلامة الكاملة
+
         $stats = StudentSubject::where('subject_id', $subjectId)
             ->whereNotNull('mark')
             ->selectRaw('
                 COUNT(*) as total_students,
                 AVG(mark) as average_mark,
                 MAX(mark) as max_mark,
-                MIN(mark) as min_mark,
-                SUM(CASE WHEN mark >= 50 THEN 1 ELSE 0 END) as passed,
-                SUM(CASE WHEN mark < 50 THEN 1 ELSE 0 END) as failed
+                MIN(mark) as min_mark
             ')
             ->first();
+
+        // حساب الناجحين والراسبين بناءً على 40%
+        $passed = StudentSubject::where('subject_id', $subjectId)
+            ->whereNotNull('mark')
+            ->where('mark', '>=', $passingMark)
+            ->count();
+
+        $failed = StudentSubject::where('subject_id', $subjectId)
+            ->whereNotNull('mark')
+            ->where('mark', '<', $passingMark)
+            ->count();
 
         $examTypes = StudentSubject::where('subject_id', $subjectId)
             ->whereNotNull('mark')
@@ -402,10 +450,13 @@ class StudentSubjectController extends Controller
             'status' => 'success',
             'data' => [
                 'subject' => $subject,
+                'passing_mark' => $passingMark,
                 'statistics' => $stats,
+                'passed' => $passed,
+                'failed' => $failed,
                 'exam_types' => $examTypes,
                 'pass_rate' => $stats->total_students > 0
-                    ? round(($stats->passed / $stats->total_students) * 100, 2)
+                    ? round(($passed / $stats->total_students) * 100, 2)
                     : 0
             ]
         ]);
@@ -429,31 +480,50 @@ class StudentSubjectController extends Controller
             ->where('student_id', $studentId)
             ->get();
 
-        $export = [
-            'full_name' => $student->user->full_name ?? null,
-            'student_id' => $student->id,
-            'export_date' => now()->format('Y-m-d H:i:s'),
-            'grades' => $grades->map(function ($grade) {
-                return [
+        $exportData = [];
+        $passedCount = 0;
+        $failedCount = 0;
+
+        foreach ($grades as $grade) {
+            if ($grade->subject) {
+                $passingMark = $grade->subject->full_mark * 0.4;
+                $isPassed = $grade->mark !== null && $grade->mark >= $passingMark;
+                
+                if ($grade->mark !== null) {
+                    if ($isPassed) {
+                        $passedCount++;
+                    } else {
+                        $failedCount++;
+                    }
+                }
+
+                $exportData[] = [
                     'subject' => $grade->subject->name,
+                    'full_mark' => $grade->subject->full_mark,
+                    'passing_mark' => $passingMark,
                     'exam_type' => $grade->exam_type,
                     'date' => $grade->date->format('Y-m-d'),
                     'mark' => $grade->mark,
                     'duration' => $grade->duration,
                     'note' => $grade->note,
-                    'status' => $grade->mark && $grade->mark >= 50 ? 'ناجح' : 'راسب'
+                    'status' => $grade->mark !== null 
+                        ? ($isPassed ? 'ناجح' : 'راسب') 
+                        : 'غير محدد'
                 ];
-            }),
+            }
+        }
+
+        $export = [
+            'student_name' => $student->user->full_name ?? null,
+            'student_id' => $student->id,
+            'export_date' => now()->format('Y-m-d H:i:s'),
+            'grades' => $exportData,
             'summary' => [
                 'total_subjects' => $grades->count(),
                 'total_exams' => $grades->whereNotNull('mark')->count(),
                 'average' => $grades->whereNotNull('mark')->avg('mark'),
-                'passed' => $grades->filter(function ($g) {
-                    return $g->mark && $g->mark >= 50;
-                })->count(),
-                'failed' => $grades->filter(function ($g) {
-                    return $g->mark && $g->mark < 50;
-                })->count()
+                'passed' => $passedCount,
+                'failed' => $failedCount
             ]
         ];
 
@@ -506,16 +576,48 @@ class StudentSubjectController extends Controller
     }
 
     /**
-     * Get passed students
+     * Get passed students (based on 40% of full mark)
      */
     public function getPassedStudents(Request $request)
     {
         $query = StudentSubject::with(['student', 'subject'])
-            ->where('mark', '>=', 50)
             ->whereNotNull('mark');
 
         if ($request->has('subject_id')) {
-            $query->where('subject_id', $request->subject_id);
+            $subjectId = $request->subject_id;
+            $subject = Subject::find($subjectId);
+            
+            if ($subject) {
+                $passingMark = $subject->full_mark * 0.4;
+                $query->where('subject_id', $subjectId)
+                      ->where('mark', '>=', $passingMark);
+            }
+        } else {
+            // إذا لم يتم تحديد مادة، نأخذ جميع المواد ونفلترها
+            $results = $query->get();
+            $filteredResults = $results->filter(function ($item) {
+                if ($item->subject) {
+                    $passingMark = $item->subject->full_mark * 0.4;
+                    return $item->mark >= $passingMark;
+                }
+                return false;
+            });
+            
+            // Paginate manually
+            $perPage = $request->get('per_page', 15);
+            $page = $request->get('page', 1);
+            $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+                $filteredResults->forPage($page, $perPage),
+                $filteredResults->count(),
+                $perPage,
+                $page,
+                ['path' => $request->url()]
+            );
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $paginated
+            ]);
         }
 
         $results = $query->paginate(15);
@@ -527,16 +629,48 @@ class StudentSubjectController extends Controller
     }
 
     /**
-     * Get failed students
+     * Get failed students (based on 40% of full mark)
      */
     public function getFailedStudents(Request $request)
     {
         $query = StudentSubject::with(['student', 'subject'])
-            ->where('mark', '<', 50)
             ->whereNotNull('mark');
 
         if ($request->has('subject_id')) {
-            $query->where('subject_id', $request->subject_id);
+            $subjectId = $request->subject_id;
+            $subject = Subject::find($subjectId);
+            
+            if ($subject) {
+                $passingMark = $subject->full_mark * 0.4;
+                $query->where('subject_id', $subjectId)
+                      ->where('mark', '<', $passingMark);
+            }
+        } else {
+            // إذا لم يتم تحديد مادة، نأخذ جميع المواد ونفلترها
+            $results = $query->get();
+            $filteredResults = $results->filter(function ($item) {
+                if ($item->subject) {
+                    $passingMark = $item->subject->full_mark * 0.4;
+                    return $item->mark < $passingMark;
+                }
+                return false;
+            });
+            
+            // Paginate manually
+            $perPage = $request->get('per_page', 15);
+            $page = $request->get('page', 1);
+            $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+                $filteredResults->forPage($page, $perPage),
+                $filteredResults->count(),
+                $perPage,
+                $page,
+                ['path' => $request->url()]
+            );
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $paginated
+            ]);
         }
 
         $results = $query->paginate(15);
@@ -569,16 +703,25 @@ class StudentSubjectController extends Controller
             ->whereNotNull('mark')
             ->count();
 
+        $passingMark = $subject->full_mark * 0.4;
+        $passed = StudentSubject::where('subject_id', $subjectId)
+            ->whereNotNull('mark')
+            ->where('mark', '>=', $passingMark)
+            ->count();
+
         return response()->json([
             'status' => 'success',
             'data' => [
                 'subject' => $subject->name,
+                'full_mark' => $subject->full_mark,
+                'passing_mark' => $passingMark,
                 'average_mark' => round($average, 2),
-                'total_students' => $count
+                'total_students' => $count,
+                'passed_students' => $passed,
+                'failed_students' => $count - $passed
             ]
         ]);
     }
-
 
     /**
      * Get top students
@@ -598,6 +741,17 @@ class StudentSubjectController extends Controller
         $topStudents = $query->orderBy('mark', 'desc')
             ->limit($limit)
             ->get();
+
+        // إضافة نسبة النجاح لكل طالب
+        $topStudents = $topStudents->map(function ($item) {
+            if ($item->subject) {
+                $passingMark = $item->subject->full_mark * 0.4;
+                $item->passing_mark = $passingMark;
+                $item->is_passed = $item->mark >= $passingMark;
+                $item->percentage = round(($item->mark / $item->subject->full_mark) * 100, 2);
+            }
+            return $item;
+        });
 
         return response()->json([
             'status' => 'success',
@@ -623,6 +777,45 @@ class StudentSubjectController extends Controller
             ->where('student_id', $studentId)
             ->get();
 
+        $subjectsData = [];
+        $passedCount = 0;
+        $failedCount = 0;
+
+        foreach ($grades as $grade) {
+            if ($grade->subject) {
+                $passingMark = $grade->subject->full_mark * 0.4;
+                $isPassed = $grade->mark !== null && $grade->mark >= $passingMark;
+                
+                if ($grade->mark !== null) {
+                    if ($isPassed) {
+                        $passedCount++;
+                    } else {
+                        $failedCount++;
+                    }
+                }
+
+                $subjectsData[] = [
+                    'subject' => $grade->subject->name,
+                    'full_mark' => $grade->subject->full_mark,
+                    'passing_mark' => $passingMark,
+                    'exam_type' => $grade->exam_type,
+                    'date' => $grade->date->format('Y-m-d'),
+                    'mark' => $grade->mark,
+                    'duration' => $grade->duration,
+                    'note' => $grade->note,
+                    'percentage' => $grade->mark !== null 
+                        ? round(($grade->mark / $grade->subject->full_mark) * 100, 2) 
+                        : null,
+                    'status' => $grade->mark !== null 
+                        ? ($isPassed ? '✅ ناجح' : '❌ راسب') 
+                        : '⚠️ غير محدد'
+                ];
+            }
+        }
+
+        $totalExams = $grades->whereNotNull('mark')->count();
+        $overallAverage = $totalExams > 0 ? $grades->whereNotNull('mark')->avg('mark') : 0;
+
         $report = [
             'student_info' => [
                 'id' => $student->id,
@@ -630,31 +823,16 @@ class StudentSubjectController extends Controller
                 'email' => $student->user->email ?? null,
                 'generated_at' => now()->format('Y-m-d H:i:s')
             ],
-            'subjects' => $grades->map(function ($grade) {
-                return [
-                    'subject' => $grade->subject->name,
-                    'exam_type' => $grade->exam_type,
-                    'date' => $grade->date->format('Y-m-d'),
-                    'mark' => $grade->mark,
-                    'duration' => $grade->duration,
-                    'note' => $grade->note,
-                    'status' => $grade->mark && $grade->mark >= 50 ? '✅ ناجح' : '❌ راسب'
-                ];
-            }),
+            'subjects' => $subjectsData,
             'summary' => [
-                'total_exams' => $grades->whereNotNull('mark')->count(),
-                'overall_average' => $grades->whereNotNull('mark')->avg('mark'),
-                'total_passed' => $grades->filter(function ($g) {
-                    return $g->mark && $g->mark >= 50;
-                })->count(),
-                'total_failed' => $grades->filter(function ($g) {
-                    return $g->mark && $g->mark < 50;
-                })->count(),
-                'performance' => $grades->whereNotNull('mark')->count() > 0
-                    ? ($grades->filter(function ($g) {
-                        return $g->mark && $g->mark >= 50;
-                    })->count() / $grades->whereNotNull('mark')->count()) * 100
-                    : 0
+                'total_exams' => $totalExams,
+                'overall_average' => round($overallAverage, 2),
+                'total_passed' => $passedCount,
+                'total_failed' => $failedCount,
+                'pass_percentage' => $totalExams > 0 
+                    ? round(($passedCount / $totalExams) * 100, 2) 
+                    : 0,
+                'passing_threshold' => '40% من العلامة الكاملة لكل مادة'
             ]
         ];
 
