@@ -8,9 +8,10 @@ use App\Http\Controllers\Dashboard\UserController;
 use App\Http\Controllers\Dashboard\ParentController;
 
 use App\Http\Controllers\Dashboard\FileController;
+use App\Http\Controllers\Dashboard\NotificationController;
 use App\Http\Controllers\Dashboard\StudentSubjectController;
 use App\Http\Controllers\Dashboard\SubjectController;
-
+use App\Http\Controllers\Dashboard\UserNotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -54,30 +55,30 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('students/section/{sectionId}', [StudentController::class, 'getStudentsBySection']);
 
 
-     // File Routes 
+    // File Routes 
     Route::get('files', [FileController::class, 'index'])->name('files.index');
     Route::get('files/{id}', [FileController::class, 'show'])->name('files.show');
     Route::get('files/{id}/download', [FileController::class, 'download'])->name('files.download');
     Route::get('files/subject/{subjectId}', [FileController::class, 'getFilesBySubject'])->name('files.by-subject');
-    
+
     // File Routes (Teachers only - with CheckTeacher middleware)
     Route::middleware(['checkTeacher'])->group(function () {
         Route::post('files', [FileController::class, 'store'])->name('files.store');
         Route::put('files/{id}', [FileController::class, 'update'])->name('files.update');
         Route::delete('files/{id}', [FileController::class, 'destroy'])->name('files.destroy');
     });
-    
+
 
     // Subject Routes
     Route::get('subjects/search', [SubjectController::class, 'search'])->name('subjects.search');
     Route::get('subjects/class/{classId}', [SubjectController::class, 'getSubjectsByClass'])->name('subjects.by.class');
     Route::get('subjects/mark-range', [SubjectController::class, 'getSubjectsByMarkRange'])->name('subjects.mark.range');
-    
+
     // Teacher assignment routes
     Route::post('subjects/assign-teacher', [SubjectController::class, 'assignTeacher'])->name('subjects.assign.teacher');
     Route::post('subjects/remove-teacher', [SubjectController::class, 'removeTeacher'])->name('subjects.remove.teacher');
     Route::get('subjects/{subjectId}/teachers', [SubjectController::class, 'getSubjectTeachers'])->name('subjects.teachers');
-    
+
     Route::resource('subjects', SubjectController::class);
 
 
@@ -94,7 +95,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('student-subjects/average/{subjectId}', [StudentSubjectController::class, 'getSubjectAverage'])->name('student-subjects.average');
     Route::get('student-subjects/top-students', [StudentSubjectController::class, 'getTopStudents'])->name('student-subjects.top-students');
     Route::get('student-subjects/student/{studentId}/report', [StudentSubjectController::class, 'generateReport'])->name('student-subjects.report');
-    
+
     // Resource Routes (must be at the end)
     Route::resource('student-subjects', StudentSubjectController::class);
 });
+

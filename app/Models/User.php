@@ -141,4 +141,27 @@ class User extends Authenticatable
 
         return $password;
     }
+    /**
+     * العلاقة مع جدول user_notification
+     */
+    public function userNotifications()
+    {
+        return $this->hasMany(UserNotification::class);
+    }
+
+    /**
+     * جلب الإشعارات غير المقروءة للمستخدم
+     */
+    public function unreadNotifications()
+    {
+        return $this->notifications()->wherePivot('is_read', false);
+    }
+
+    /**
+     * جلب الإشعارات المقروءة للمستخدم
+     */
+    public function readNotifications()
+    {
+        return $this->notifications()->wherePivot('is_read', true);
+    }
 }
