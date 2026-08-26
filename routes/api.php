@@ -100,3 +100,24 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::resource('student-subjects', StudentSubjectController::class);
 });
 
+
+Route::middleware('auth:sanctum')->group(function () {
+
+    // Public notification paths (for administrators)
+    Route::prefix('notifications')->group(function () {
+        Route::get('/stats', [NotificationController::class, 'stats']);
+        Route::get('/', [NotificationController::class, 'index']); 
+        Route::get('/{id}', [NotificationController::class, 'show']);
+        Route::post('/', [NotificationController::class, 'store']);
+        Route::put('/{id}', [NotificationController::class, 'update']);
+        Route::delete('/{id}', [NotificationController::class, 'destroy']);
+    });
+
+    // Paths specific to the login user
+    Route::prefix('my')->group(function () {
+        Route::get('/notifications', [NotificationController::class, 'myNotifications']);
+        Route::get('/notifications/unread', [NotificationController::class, 'myUnreadNotifications']);     
+        Route::put('/notifications/{notificationId}/read', [NotificationController::class, 'markMyNotificationAsRead']); 
+        Route::put('/notifications/read-all', [NotificationController::class, 'markAllMyNotificationsAsRead']);
+    });
+});
