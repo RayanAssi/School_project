@@ -17,10 +17,18 @@ class UserController extends Controller
         $users = User::paginate(15);
 
         return response()->json([
-            'success' => true,
-            'message' => 'تم جلب المستخدمين بنجاح',
-            'data' => $users
-        ]);
+        'success' => true,
+        'message' => 'تم جلب المستخدمين بنجاح',
+        'data' => $users->items(),
+        'pagination' => [
+            'current_page' => $users->currentPage(),
+            'last_page' => $users->lastPage(),
+            'per_page' => $users->perPage(),
+            'total' => $users->total(),
+            'next_page_url' => $users->nextPageUrl(),
+            'prev_page_url' => $users->previousPageUrl(),
+        ]
+    ]);
     }
 
     //show the authenticated user information
@@ -28,8 +36,6 @@ class UserController extends Controller
     {
         return response()->json([
             'user' => Auth::user(),
-            'email' => Auth::user()->email,
-            'user_type' => Auth::user()->user_type,
         ]);
     }
 
