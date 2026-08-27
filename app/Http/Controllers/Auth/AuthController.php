@@ -36,15 +36,6 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Login successful',
             'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => [
-                'id' => $user->id,
-                'user_name' => $user->user_name,
-                'full_name' => $user->full_name,
-                'email' => $user->email,
-                'user_type' => $user->user_type,
-                'has_device' => $user->hasFcmToken(),
-            ]
         ]);
     }
 
