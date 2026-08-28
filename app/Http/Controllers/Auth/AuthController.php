@@ -7,7 +7,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -56,4 +57,37 @@ class AuthController extends Controller
         ]);
     }
 
+    public function saveFCMToken(Request $request)
+{
+    Log::info('Request Headers:', $request->headers->all());
+    Log::info('Authorization Header:', [$request->header('Authorization')]);
+    try {
+        $request->validate([
+            'fcm_token' => 'required|string',
+        ]);
+
+        $user = Auth::user();
+Log::info('User:', [$user]);
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'المستخدم غير مسجل الدخول',
+            ], 401);
+        }
+
+        $user->fcm_token = $request->fcm_token;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم حفظ FCM Token بنجاح',
+            'fcm_token' => $user->fcm_token
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ: ' . $e->getMessage(),
+        ], 500);
+    }
+}
 }
