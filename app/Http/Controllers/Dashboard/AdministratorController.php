@@ -56,22 +56,26 @@ class AdministratorController extends Controller
             'password' => Hash::make($password),
             'user_type' => 'admin',
         ]);
-        $responseData = [
-            'success' => true,
-            'message' => 'تم إنشاء المستخدم بنجاح',
-        ];
+
         $admin = Administrator::create([
             'user_id' => $user->id,
             'role' => 'admin_assistant',
         ]);
-        $responseData['id'] = $user->id;
-        $responseData['role'] = $admin->role;
 
-        $responseData['user'] = $user;
-
+        $responseData = [
+            'success' => true,
+            'message' => 'تم إنشاء المدير بنجاح',
+            'role' => $admin->role,
+            'user' =>[
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'user_name' => $userName,
+                'password' => $password,
+            ],
+        ];
         return response()->json($responseData, 201);
     }
-
     public function update(Request $request, $id)
     {
         $admin = Administrator::find($id);
