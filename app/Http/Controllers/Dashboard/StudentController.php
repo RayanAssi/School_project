@@ -82,17 +82,15 @@ class StudentController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+     public function store(Request $request)
     {
         try {
-            // Validate data
+            // ✅ Validate data - removed email and city
             $validator = Validator::make($request->all(), [
                 'full_name' => 'required|string|max:255',
-                'email' => 'required|email|unique:users,email',
                 'birth_date' => 'required|date',
                 'gender' => 'required|in:ذكر,أنثى',
                 'residential_address' => 'required|string',
-                'city' => 'required|string|max:255',
                 'class_id' => 'required|exists:classes,id',
                 'section_id' => 'required|exists:sections,id',
                 'parent_id' => 'required|exists:parents,id',
@@ -108,26 +106,26 @@ class StudentController extends Controller
 
             DB::beginTransaction();
 
-            // Generate username and password
+            // ✅ Generate username and password (without email)
             $userName = User::generateUserName('student', $request->full_name);
             $newPassword = User::generatePassword();
 
-            // Create user account for student only
+            // ✅ Create user account without email
             $user = User::create([
                 'full_name' => $request->full_name,
                 'user_name' => $userName,
-                'email' => $request->email,
+                'email' => $userName . '@school.local', // ✅ Generate dummy email
                 'password' => Hash::make($newPassword),
                 'user_type' => 'student',
             ]);
 
-            // Create student data and link to existing parent
+            // ✅ Create student data without city
             $student = Student::create([
                 'birth_date' => $request->birth_date,
                 'comment' => $request->comment,
                 'gender' => $request->gender,
                 'residential_address' => $request->residential_address,
-                'city' => $request->city,
+                'city' => '', // ✅ Set empty city
                 'parent_id' => $request->parent_id,
                 'section_id' => $request->section_id,
                 'class_id' => $request->class_id,
