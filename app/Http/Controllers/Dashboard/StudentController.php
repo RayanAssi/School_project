@@ -51,6 +51,8 @@ class StudentController extends Controller
                     'mother_name' => $student->parent->full_name_mother ?? null,
                     'father_phone' => $student->parent->phone_number_father ?? null,
                     'mother_phone' => $student->parent->phone_number_mother ?? null,
+                    'job_father' => $student->parent->job_father ?? null,
+                    'job_mother' => $student->parent->job_mother ?? null, 
                     'subjects' => $student->subjects->map(function ($subject) {
                         return [
                             'subject_name' => $subject->name,
@@ -214,6 +216,8 @@ class StudentController extends Controller
                     'mother_name' => $student->parent->full_name_mother ?? null,
                     'father_phone' => $student->parent->phone_number_father ?? null,
                     'mother_phone' => $student->parent->phone_number_mother ?? null,
+                    'job_father' => $student->parent->job_father ?? null,
+                    'job_mother' => $student->parent->job_mother ?? null,
                 ],
                 'subjects' => $student->subjects->map(function ($subject) {
                     return [
