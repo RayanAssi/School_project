@@ -220,6 +220,13 @@ class StudentController extends Controller
                     'job_mother' => $student->parent->job_mother ?? null,
                 ],
                 'subjects' => $student->subjects->map(function ($subject) {
+                    $teacher = DB::table('teacher_subject')
+                        ->join('teachers', 'teachers.id', '=', 'teacher_subject.teacher_id')
+                        ->join('users', 'users.id', '=', 'teachers.user_id') 
+                        ->where('teacher_subject.subject_id', $subject->id)
+                        ->select('users.full_name', 'users.user_name', 'teachers.id')
+                        ->first();
+
                     return [
                         'id' => $subject->id,
                         'name' => $subject->name,
@@ -228,6 +235,8 @@ class StudentController extends Controller
                         'date' => $subject->pivot->date,
                         'note' => $subject->pivot->note,
                         'duration' => $subject->pivot->duration,
+                        'teacher_name' => $teacher->full_name ?? $teacher->user_name ?? null,
+                        'teacher_id' => $teacher->id ?? null,
                     ];
                 }),
                 'created_at' => $student->created_at,
