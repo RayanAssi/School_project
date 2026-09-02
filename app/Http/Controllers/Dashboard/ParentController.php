@@ -197,7 +197,7 @@ class ParentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+public function update(Request $request, string $id)
     {
         try {
             $parent = Parente::find($id);
@@ -216,6 +216,8 @@ class ParentController extends Controller
                 'job_mother' => 'sometimes|string|max:255',
                 'phone_number_father' => 'sometimes|string|unique:parents,phone_number_father,' . $id,
                 'phone_number_mother' => 'sometimes|string|unique:parents,phone_number_mother,' . $id,
+                'email' => 'sometimes|email|unique:users,email,' . $parent->user_id,
+                'password' => 'sometimes|string|min:6',
             ]);
 
             if ($validator->fails()) {
@@ -227,17 +229,32 @@ class ParentController extends Controller
 
             DB::beginTransaction();
 
-            if ($request->has('full_name_father') || $request->has('full_name_mother')) {
-                $user = User::find($parent->user_id);
-                if ($user) {
-                    $fatherName = $request->full_name_father ?? $parent->full_name_father;
-                    $motherName = $request->full_name_mother ?? $parent->full_name_mother;
-                    $user->full_name = $fatherName;
-                    $user->save();
+            $user = User::find($parent->user_id);
+            if ($user) {
+                // إذا تم تغيير اسم الأب، نقوم بتوليد اسم مستخدم جديد من الاسم الأول
+                if ($request->has('full_name_father')) {
+                    $user->full_name = $request->full_name_father;
+                    
+                    // توليد اسم مستخدم جديد من الاسم الأول + لاحقة + رقم عشوائي
+                    $firstName = explode(' ', trim($request->full_name_father))[0];
+                    $randomSuffix = rand(1000, 9999);
+                    $user->user_name = 'par_' . $firstName. '_' . $randomSuffix ;
                 }
+                
+                // تحديث الإيميل
+                if ($request->has('email')) {
+                    $user->email = $request->email;
+                }
+                
+                // تحديث كلمة المرور (إذا أرسلت)
+                if ($request->has('password')) {
+                    $user->password = Hash::make($request->password);
+                }
+                
+                $user->save();
             }
 
-            //update parent data
+            // تحديث بيانات ولي الأمر
             $parent->update($request->only([
                 'full_name_father',
                 'full_name_mother',
@@ -265,7 +282,6 @@ class ParentController extends Controller
             ], 500);
         }
     }
-
     /**
      * Remove the specified resource from storage.
      */
