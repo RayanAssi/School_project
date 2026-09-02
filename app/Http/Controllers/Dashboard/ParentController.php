@@ -197,91 +197,86 @@ class ParentController extends Controller
     /**
      * Update the specified resource in storage.
      */
+   // app/Http/Controllers/Dashboard/ParentController.php
+
 public function update(Request $request, string $id)
-    {
-        try {
-            $parent = Parente::find($id);
+{
+    try {
+        $parent = Parente::find($id);
 
-            if (!$parent) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'الأب غير موجود'
-                ], 404);
-            }
-
-            $validator = Validator::make($request->all(), [
-                'full_name_father' => 'sometimes|string|max:255',
-                'full_name_mother' => 'sometimes|string|max:255',
-                'job_father' => 'sometimes|string|max:255',
-                'job_mother' => 'sometimes|string|max:255',
-                'phone_number_father' => 'sometimes|string|unique:parents,phone_number_father,' . $id,
-                'phone_number_mother' => 'sometimes|string|unique:parents,phone_number_mother,' . $id,
-                'email' => 'sometimes|email|unique:users,email,' . $parent->user_id,
-                'password' => 'sometimes|string|min:6',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            DB::beginTransaction();
-
-            $user = User::find($parent->user_id);
-            if ($user) {
-                // إذا تم تغيير اسم الأب، نقوم بتوليد اسم مستخدم جديد من الاسم الأول
-                if ($request->has('full_name_father')) {
-                    $user->full_name = $request->full_name_father;
-                    
-                    // توليد اسم مستخدم جديد من الاسم الأول + لاحقة + رقم عشوائي
-                    $firstName = explode(' ', trim($request->full_name_father))[0];
-                    $randomSuffix = rand(1000, 9999);
-                    $user->user_name = 'par_' . $firstName. '_' . $randomSuffix ;
-                }
-                
-                // تحديث الإيميل
-                if ($request->has('email')) {
-                    $user->email = $request->email;
-                }
-                
-                // تحديث كلمة المرور (إذا أرسلت)
-                if ($request->has('password')) {
-                    $user->password = Hash::make($request->password);
-                }
-                
-                $user->save();
-            }
-
-            // تحديث بيانات ولي الأمر
-            $parent->update($request->only([
-                'full_name_father',
-                'full_name_mother',
-                'job_father',
-                'job_mother',
-                'phone_number_father',
-                'phone_number_mother'
-            ]));
-
-            DB::commit();
-
-            $updatedParent = Parente::with(['user'])->find($id);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'تم تحديث بيانات الأب بنجاح',
-                'data' => $updatedParent
-            ], 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
+        if (!$parent) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء تحديث بيانات الأب',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'الأب غير موجود'
+            ], 404);
         }
+
+        $validator = Validator::make($request->all(), [
+            'full_name_father' => 'sometimes|string|max:255',
+            'full_name_mother' => 'sometimes|string|max:255',
+            'job_father' => 'sometimes|string|max:255',
+            'job_mother' => 'sometimes|string|max:255',
+            'phone_number_father' => 'sometimes|string|unique:parents,phone_number_father,' . $id,
+            'phone_number_mother' => 'sometimes|string|unique:parents,phone_number_mother,' . $id,
+            'email' => 'sometimes|email|unique:users,email,' . $parent->user_id,
+            'user_name' => 'sometimes|string|unique:users,user_name,' . $parent->user_id,
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+
+        $user = User::find($parent->user_id);
+        if ($user) {
+            if ($request->has('full_name_father')) {
+                $user->full_name = $request->full_name_father;
+            }
+
+            if ($request->has('user_name')) {
+                $user->user_name = $request->user_name;
+            }
+
+            if ($request->has('email')) {
+                $user->email = $request->email;
+            }
+
+            $user->save();
+        }
+
+        // تحديث بيانات ولي الأمر
+        $parent->update($request->only([
+            'full_name_father',
+            'full_name_mother',
+            'job_father',
+            'job_mother',
+            'phone_number_father',
+            'phone_number_mother'
+        ]));
+
+        DB::commit();
+
+        $updatedParent = Parente::with(['user'])->find($id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم تحديث بيانات الأب بنجاح',
+            'data' => $updatedParent
+        ], 200);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء تحديث بيانات الأب',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
     /**
      * Remove the specified resource from storage.
      */
@@ -495,6 +490,51 @@ public function update(Request $request, string $id)
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء جلب أبناء الولي',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reset password for a parent
+     */
+    public function resetPassword(Request $request, string $id)
+    {
+        try {
+            $parent = Parente::find($id);
+
+            if (!$parent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ولي الأمر غير موجود'
+                ], 404);
+            }
+
+            $user = User::find($parent->user_id);
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المستخدم غير موجود'
+                ], 404);
+            }
+
+            // توليد كلمة مرور جديدة باستخدام دالة User
+            $newPassword = User::generatePassword();
+            $user->password = Hash::make($newPassword);
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم إعادة تعيين كلمة المرور بنجاح',
+                'data' => [
+                    'user_name' => $user->user_name,
+                    'password' => $newPassword
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
                 'error' => $e->getMessage()
             ], 500);
         }

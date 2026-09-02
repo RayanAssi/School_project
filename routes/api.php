@@ -31,6 +31,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('parents/search', [ParentController::class, 'search'])->name('parents.search');
     Route::get('parents/{parentId}/children', [ParentController::class, 'getChildren'])->name('parents.children');
     Route::resource('parents', ParentController::class);
+    Route::post('/parents/{id}/reset-password', [ParentController::class, 'resetPassword']);
 
     //Auth
     Route::post('/logout', [AuthController::class, 'logout']);
