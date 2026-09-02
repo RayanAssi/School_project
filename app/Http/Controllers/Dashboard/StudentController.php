@@ -374,13 +374,13 @@ class StudentController extends Controller
     /**
      * Get all parents (for use in dropdown when creating student)
      */
-    public function getParentsList()
+        public function getParentsList()
     {
         try {
             $parents = DB::table('parents')->select(
                 'id',
-                'full_name_father as father_name',
-                'full_name_mother as mother_name'
+                'full_name_father', 
+                'full_name_mother'  
             )->get();
 
             return response()->json([
