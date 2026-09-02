@@ -15,7 +15,8 @@ use App\Http\Controllers\Dashboard\UserNotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
-
+Route::post('/save-fcm-token', [AuthController::class, 'saveFCMToken'])
+        ->middleware('auth:sanctum');
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
 
     // Teacher Routes
@@ -33,6 +34,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
     //Auth
     Route::post('/logout', [AuthController::class, 'logout']);
+    
 
     //Class Routes
     Route::resource('classes', ClassController::class);
@@ -106,7 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Public notification paths (for administrators)
     Route::prefix('notifications')->group(function () {
         Route::get('/stats', [NotificationController::class, 'stats']);
-        Route::get('/', [NotificationController::class, 'index']); 
+        Route::get('/', [NotificationController::class, 'index']);
         Route::get('/{id}', [NotificationController::class, 'show']);
         Route::post('/', [NotificationController::class, 'store']);
         Route::put('/{id}', [NotificationController::class, 'update']);
@@ -116,8 +118,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Paths specific to the login user
     Route::prefix('my')->group(function () {
         Route::get('/notifications', [NotificationController::class, 'myNotifications']);
-        Route::get('/notifications/unread', [NotificationController::class, 'myUnreadNotifications']);     
-        Route::put('/notifications/{notificationId}/read', [NotificationController::class, 'markMyNotificationAsRead']); 
+        Route::get('/notifications/unread', [NotificationController::class, 'myUnreadNotifications']);
+        Route::put('/notifications/{notificationId}/read', [NotificationController::class, 'markMyNotificationAsRead']);
         Route::put('/notifications/read-all', [NotificationController::class, 'markAllMyNotificationsAsRead']);
     });
 });
