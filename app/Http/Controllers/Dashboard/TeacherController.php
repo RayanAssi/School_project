@@ -356,4 +356,157 @@ class TeacherController extends Controller
             ], 500);
         }
     }
+
+    // app/Http/Controllers/Dashboard/TeacherController.php
+
+public function resetPassword($id)
+{
+    try {
+        $teacher = Teacher::with('user')->find($id);
+        
+        if (!$teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'المدرس غير موجود'
+            ], 404);
+        }
+        
+        $user = $teacher->user;
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'المستخدم غير موجود'
+            ], 404);
+        }
+        
+        $newPassword = User::generatePassword();
+        $user->password = Hash::make($newPassword);
+        $user->save();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إعادة تعيين كلمة المرور بنجاح',
+            'data' => [
+                'user_name' => $user->user_name,
+                'password' => $newPassword
+            ]
+        ], 200);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+ /**
+     * Get teacher's classes with sections and their subjects
+     */
+    public function getClasses($id)
+    {
+        try {
+            $teacher = Teacher::with(['sections.class', 'subjects'])->find($id);
+            
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المدرس غير موجود'
+                ], 404);
+            }
+            
+            // تجميع الصفوف مع شعبها وموادها
+            $classes = [];
+            $seenClasses = [];
+            
+            foreach ($teacher->sections as $section) {
+                $classId = $section->class_id;
+                $className = $section->class->name ?? 'بدون صف';
+                
+                if (!isset($seenClasses[$classId])) {
+                    $seenClasses[$classId] = true;
+                    $classes[] = [
+                        'id' => $classId,
+                        'class_name' => $className,
+                        'sections' => []
+                    ];
+                }
+                
+                // جلب المواد لهذه الشعبة
+                $sectionSubjects = [];
+                foreach ($teacher->subjects as $subject) {
+                    // التحقق إذا كانت هذه المادة مرتبطة بهذه الشعبة
+                    $isRelated = $subject->sections()->where('sections.id', $section->id)->exists();
+                    if ($isRelated) {
+                        $sectionSubjects[] = [
+                            'id' => $subject->id,
+                            'name' => $subject->name ?? $subject->subject_name ?? 'بدون مادة'
+                        ];
+                    }
+                }
+                
+                // إضافة الشعبة للصف المناسب
+                foreach ($classes as &$class) {
+                    if ($class['id'] === $classId) {
+                        $class['sections'][] = [
+                            'id' => $section->id,
+                            'name' => $section->name ?? 'بدون شعبة',
+                            'subjects' => $sectionSubjects
+                        ];
+                        break;
+                    }
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $classes
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب صفوف المدرس',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get teacher's subjects (simplified)
+     */
+    public function getSubjects($id)
+    {
+        try {
+            $teacher = Teacher::with(['subjects'])->find($id);
+            
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المدرس غير موجود'
+                ], 404);
+            }
+            
+            $subjects = $teacher->subjects->map(function ($subject) {
+                return [
+                    'id' => $subject->id,
+                    'name' => $subject->name ?? $subject->subject_name ?? 'بدون مادة',
+                ];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'data' => $subjects
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب مواد المدرس',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

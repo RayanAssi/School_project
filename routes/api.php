@@ -11,12 +11,14 @@ use App\Http\Controllers\Dashboard\FileController;
 use App\Http\Controllers\Dashboard\NotificationController;
 use App\Http\Controllers\Dashboard\StudentSubjectController;
 use App\Http\Controllers\Dashboard\SubjectController;
+use App\Http\Controllers\Dashboard\TeacherController as DashboardTeacherController;
+use App\Http\Controllers\Dashboard\TeacherController as ControllersDashboardTeacherController;
 use App\Http\Controllers\Dashboard\UserNotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/save-fcm-token', [AuthController::class, 'saveFCMToken'])
-        ->middleware('auth:sanctum');
+    ->middleware('auth:sanctum');
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
 
     // Teacher Routes
@@ -24,7 +26,10 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('teachers/search', [TeacherController::class, 'search'])->name('teachers.search');
     Route::get('teachers/gender/{gender}', [TeacherController::class, 'getTeachersByGender'])->name('teachers.gender');
     Route::get('teachers/phone/{phone}', [TeacherController::class, 'getTeachersByPhone'])->name('teachers.phone');
-    Route::resource('teachers', TeacherController::class);
+    Route::resource('teachers', teacherController::class);
+    Route::post('teachers/{id}/reset-password', [TeacherController::class, 'resetPassword']);
+    Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']); 
+    Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
 
     //parents Routes
     Route::get('parents/statistics', [ParentController::class, 'statistics'])->name('parents.statistics');
@@ -35,7 +40,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
 
     //Auth
     Route::post('/logout', [AuthController::class, 'logout']);
-    
+
 
     //Class Routes
     Route::resource('classes', ClassController::class);
