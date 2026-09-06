@@ -359,72 +359,71 @@ class TeacherController extends Controller
 
     // app/Http/Controllers/Dashboard/TeacherController.php
 
-public function resetPassword($id)
-{
-    try {
-        $teacher = Teacher::with('user')->find($id);
-        
-        if (!$teacher) {
-            return response()->json([
-                'success' => false,
-                'message' => 'المدرس غير موجود'
-            ], 404);
-        }
-        
-        $user = $teacher->user;
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'المستخدم غير موجود'
-            ], 404);
-        }
-        
-        $newPassword = User::generatePassword();
-        $user->password = Hash::make($newPassword);
-        $user->save();
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'تم إعادة تعيين كلمة المرور بنجاح',
-            'data' => [
-                'user_name' => $user->user_name,
-                'password' => $newPassword
-            ]
-        ], 200);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
-
-
- /**
-     * Get teacher's classes with sections and their subjects
-     */
-    public function getClasses($id)
+    public function resetPassword($id)
     {
         try {
-            $teacher = Teacher::with(['sections.class', 'subjects'])->find($id);
-            
+            $teacher = Teacher::with('user')->find($id);
+
             if (!$teacher) {
                 return response()->json([
                     'success' => false,
                     'message' => 'المدرس غير موجود'
                 ], 404);
             }
-            
+
+            $user = $teacher->user;
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المستخدم غير موجود'
+                ], 404);
+            }
+
+            $newPassword = User::generatePassword();
+            $user->password = Hash::make($newPassword);
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم إعادة تعيين كلمة المرور بنجاح',
+                'data' => [
+                    'user_name' => $user->user_name,
+                    'password' => $newPassword
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    /**
+     * Get teacher's classes with sections and their subjects
+     */
+    public function getClasses($id)
+    {
+        try {
+            $teacher = Teacher::with(['sections.class', 'subjects'])->find($id);
+
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المدرس غير موجود'
+                ], 404);
+            }
+
             // تجميع الصفوف مع شعبها وموادها
             $classes = [];
             $seenClasses = [];
-            
+
             foreach ($teacher->sections as $section) {
                 $classId = $section->class_id;
                 $className = $section->class->name ?? 'بدون صف';
-                
+
                 if (!isset($seenClasses[$classId])) {
                     $seenClasses[$classId] = true;
                     $classes[] = [
@@ -433,7 +432,7 @@ public function resetPassword($id)
                         'sections' => []
                     ];
                 }
-                
+
                 // جلب المواد لهذه الشعبة
                 $sectionSubjects = [];
                 foreach ($teacher->subjects as $subject) {
@@ -446,7 +445,7 @@ public function resetPassword($id)
                         ];
                     }
                 }
-                
+
                 // إضافة الشعبة للصف المناسب
                 foreach ($classes as &$class) {
                     if ($class['id'] === $classId) {
@@ -459,12 +458,11 @@ public function resetPassword($id)
                     }
                 }
             }
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $classes
             ], 200);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -481,30 +479,93 @@ public function resetPassword($id)
     {
         try {
             $teacher = Teacher::with(['subjects'])->find($id);
-            
+
             if (!$teacher) {
                 return response()->json([
                     'success' => false,
                     'message' => 'المدرس غير موجود'
                 ], 404);
             }
-            
+
             $subjects = $teacher->subjects->map(function ($subject) {
                 return [
                     'id' => $subject->id,
                     'name' => $subject->name ?? $subject->subject_name ?? 'بدون مادة',
                 ];
             });
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $subjects
             ], 200);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء جلب مواد المدرس',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getMySections(Request $request)
+    {
+        try {
+            // جلب المستخدم من التوكن
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المستخدم غير مسجل الدخول'
+                ], 401);
+            }
+
+            // التأكد من أن المستخدم من نوع teacher
+            if ($user->user_type !== 'teacher') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المستخدم ليس مدرساً'
+                ], 403);
+            }
+
+            // جلب الأستاذ المرتبط بالمستخدم
+            $teacher = Teacher::with(['sections' => function ($query) {
+                $query->with(['class']); // جلب الصف المرتبط بكل شعبة
+            }])->where('user_id', $user->id)->first();
+
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يوجد أستاذ مرتبط بهذا المستخدم'
+                ], 404);
+            }
+
+            // تنسيق البيانات
+            $sections = $teacher->sections->map(function ($section) {
+                return [
+                    'id' => $section->id,
+                    'name' => $section->name ?? 'بدون اسم',
+                    'class_id' => $section->class_id,
+                    'class_name' => $section->class->name ?? 'بدون صف',
+                    'comment' => $section->comment ?? null,
+                    'created_at' => $section->created_at,
+                    'updated_at' => $section->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'teacher_id' => $teacher->id,
+                    'teacher_name' => $user->full_name,
+                    'sections' => $sections,
+                    'total' => $sections->count()
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب شعب الأستاذ',
                 'error' => $e->getMessage()
             ], 500);
         }

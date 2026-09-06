@@ -30,6 +30,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::post('teachers/{id}/reset-password', [TeacherController::class, 'resetPassword']);
     Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']); 
     Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
+    Route::get('/teacher/my-sections', [TeacherController::class, 'getMySections']);
+
 
     //parents Routes
     Route::get('parents/statistics', [ParentController::class, 'statistics'])->name('parents.statistics');
