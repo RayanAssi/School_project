@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('gender', ['ذكر', 'أنثى']);
             $table->string('residential_address');
             $table->string('city');
-            $table->foreignId('parent_id')->constrained('parents')->onDelete('cascade');
+            $table->foreignId('parent_id')->constrained('parents')->onDelete('restrict');
             $table->foreignId('section_id')->constrained('sections')->onDelete('cascade');
             $table->foreignId('class_id')->constrained('classes')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');

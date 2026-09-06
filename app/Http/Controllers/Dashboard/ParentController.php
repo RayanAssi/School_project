@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Parente;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -197,86 +198,85 @@ class ParentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-   // app/Http/Controllers/Dashboard/ParentController.php
+    // app/Http/Controllers/Dashboard/ParentController.php
 
-public function update(Request $request, string $id)
-{
-    try {
-        $parent = Parente::find($id);
+    public function update(Request $request, string $id)
+    {
+        try {
+            $parent = Parente::find($id);
 
-        if (!$parent) {
+            if (!$parent) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الأب غير موجود'
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'full_name_father' => 'sometimes|string|max:255',
+                'full_name_mother' => 'sometimes|string|max:255',
+                'job_father' => 'sometimes|string|max:255',
+                'job_mother' => 'sometimes|string|max:255',
+                'phone_number_father' => 'sometimes|string|unique:parents,phone_number_father,' . $id,
+                'phone_number_mother' => 'sometimes|string|unique:parents,phone_number_mother,' . $id,
+                'email' => 'sometimes|email|unique:users,email,' . $parent->user_id,
+                'user_name' => 'sometimes|string|unique:users,user_name,' . $parent->user_id,
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $user = User::find($parent->user_id);
+            if ($user) {
+                if ($request->has('full_name_father')) {
+                    $user->full_name = $request->full_name_father;
+                }
+
+                if ($request->has('user_name')) {
+                    $user->user_name = $request->user_name;
+                }
+
+                if ($request->has('email')) {
+                    $user->email = $request->email;
+                }
+
+                $user->save();
+            }
+
+            // تحديث بيانات ولي الأمر
+            $parent->update($request->only([
+                'full_name_father',
+                'full_name_mother',
+                'job_father',
+                'job_mother',
+                'phone_number_father',
+                'phone_number_mother'
+            ]));
+
+            DB::commit();
+
+            $updatedParent = Parente::with(['user'])->find($id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تحديث بيانات الأب بنجاح',
+                'data' => $updatedParent
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'الأب غير موجود'
-            ], 404);
+                'message' => 'حدث خطأ أثناء تحديث بيانات الأب',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $validator = Validator::make($request->all(), [
-            'full_name_father' => 'sometimes|string|max:255',
-            'full_name_mother' => 'sometimes|string|max:255',
-            'job_father' => 'sometimes|string|max:255',
-            'job_mother' => 'sometimes|string|max:255',
-            'phone_number_father' => 'sometimes|string|unique:parents,phone_number_father,' . $id,
-            'phone_number_mother' => 'sometimes|string|unique:parents,phone_number_mother,' . $id,
-            'email' => 'sometimes|email|unique:users,email,' . $parent->user_id,
-            'user_name' => 'sometimes|string|unique:users,user_name,' . $parent->user_id,
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        DB::beginTransaction();
-
-        $user = User::find($parent->user_id);
-        if ($user) {
-            if ($request->has('full_name_father')) {
-                $user->full_name = $request->full_name_father;
-            }
-
-            if ($request->has('user_name')) {
-                $user->user_name = $request->user_name;
-            }
-
-            if ($request->has('email')) {
-                $user->email = $request->email;
-            }
-
-            $user->save();
-        }
-
-        // تحديث بيانات ولي الأمر
-        $parent->update($request->only([
-            'full_name_father',
-            'full_name_mother',
-            'job_father',
-            'job_mother',
-            'phone_number_father',
-            'phone_number_mother'
-        ]));
-
-        DB::commit();
-
-        $updatedParent = Parente::with(['user'])->find($id);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'تم تحديث بيانات الأب بنجاح',
-            'data' => $updatedParent
-        ], 200);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'success' => false,
-            'message' => 'حدث خطأ أثناء تحديث بيانات الأب',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
     /**
      * Remove the specified resource from storage.
      */
@@ -292,15 +292,42 @@ public function update(Request $request, string $id)
                 ], 404);
             }
 
+            // جلب الأبناء المرتبطين بهذا الولي
+            $students = Student::with('user')->where('parent_id', $id)->get();
+            $studentsCount = $students->count();
+
+            if ($studentsCount > 0) {
+                // تنسيق بيانات الأبناء
+                $childrenNames = $students->map(function ($student) {
+                    return [
+                        'id' => $student->id,
+                        'full_name' => $student->user->full_name ?? 'اسم غير معروف',
+                        'birth_date' => $student->birth_date,
+                        'gender' => $student->gender,
+                        'class_id' => $student->class_id,
+                        'section_id' => $student->section_id,
+                    ];
+                });
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "لا يمكن حذف ولي الأمر لأنه مرتبط بـ {$studentsCount} من الطلاب",
+                    'data' => [
+                        'students_count' => $studentsCount,
+                        'children' => $childrenNames
+                    ]
+                ], 422);
+            }
+
             DB::beginTransaction();
 
-            // delete the associated user
+            // حذف المستخدم المرتبط
             $user = User::find($parent->user_id);
             if ($user) {
                 $user->delete();
             }
 
-            // delete the parent 
+            // حذف ولي الأمر
             $parent->delete();
 
             DB::commit();
@@ -311,6 +338,21 @@ public function update(Request $request, string $id)
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
+
+            // التحقق من نوع الخطأ
+            if (
+                str_contains($e->getMessage(), 'foreign key constraint') ||
+                str_contains($e->getMessage(), 'Cannot delete or update a parent row')
+            ) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن حذف ولي الأمر لأنه مرتبط بطلاب مسجلين في النظام',
+                    'data' => [
+                        'error_type' => 'foreign_key_constraint'
+                    ]
+                ], 422);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء حذف الأب',
@@ -318,7 +360,6 @@ public function update(Request $request, string $id)
             ], 500);
         }
     }
-
     /**
      * Get parents statistics
      */
@@ -342,9 +383,6 @@ public function update(Request $request, string $id)
         }
     }
 
-    /**
-     * Search parents
-     */
     /**
      * Search parents
      */
