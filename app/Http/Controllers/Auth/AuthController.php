@@ -24,7 +24,7 @@ class AuthController extends Controller
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'user_name' => ['The provided credentials are incorrect.'],
+                'user_name' => ['اسم المستخدم أو كلمة المرور غير صحيحة .'],
             ]);
         }
 
