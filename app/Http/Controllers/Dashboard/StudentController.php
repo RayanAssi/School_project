@@ -476,27 +476,55 @@ class StudentController extends Controller
     /**
      * Get students by section
      */
-    public function getStudentsBySection($sectionId)
-    {
-        try {
-            $students = Student::with(['user', 'parent', 'class', 'section'])
-                ->where('section_id', $sectionId)
-                ->get();
+    /**
+ * Get students by section
+ */
+public function getStudentsBySection($sectionId)
+{
+    try {
+        $students = Student::with(['user', 'parent', 'class', 'section'])
+            ->where('section_id', $sectionId)
+            ->get();
 
-            return response()->json([
-                'success' => true,
-                'data' => $students,
-                'total' => $students->count()
-            ], 200);
+        // ✅ تنسيق البيانات مثل دالة index
+        $formattedStudents = $students->map(function ($student) {
+            return [
+                'id' => $student->id,
+                'user_name' => $student->user->user_name ?? null,
+                'email' => $student->user->email ?? null,
+                'full_name' => $student->user->full_name ?? null,
+                'birth_date' => $student->birth_date,
+                'gender' => $student->gender,
+                'residential_address' => $student->residential_address,
+                'city' => $student->city,
+                'comment' => $student->comment,
+                'class_name' => $student->class->name ?? null,
+                'section_name' => $student->section->name ?? null,
+                'father_name' => $student->parent->full_name_father ?? null,
+                'mother_name' => $student->parent->full_name_mother ?? null,
+                'father_phone' => $student->parent->phone_number_father ?? null,
+                'mother_phone' => $student->parent->phone_number_mother ?? null,
+                'job_father' => $student->parent->job_father ?? null,
+                'job_mother' => $student->parent->job_mother ?? null,
+                'created_at' => $student->created_at,
+                'updated_at' => $student->updated_at,
+            ];
+        });
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ أثناء جلب الطلاب حسب الشعبة',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $formattedStudents,
+            'total' => $formattedStudents->count()
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء جلب الطلاب حسب الشعبة',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Get students statistics
