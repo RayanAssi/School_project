@@ -464,13 +464,8 @@ class TeacherController extends Controller
         }
     }
 
-     /**
+    /**
      * Get teacher with their classes, sections, and subjects
-     * 
-     * هذه الدالة تجلب الأستاذ مع:
-     * - الصفوف التي يدرسها (Classes)
-     * - الشعب التي يدرسها (Sections) مرتبة حسب الصف
-     * - المواد التي يدرسها (Subjects)
      */
     public function getTeacherWithDetails($id)
     {
@@ -497,7 +492,7 @@ class TeacherController extends Controller
             foreach ($teacher->sections as $section) {
                 $classId = $section->class_id;
                 $className = $section->class->name ?? 'بدون صف';
-                
+
                 if (!isset($classesWithSections[$classId])) {
                     $classesWithSections[$classId] = [
                         'class_id' => $classId,
@@ -505,7 +500,7 @@ class TeacherController extends Controller
                         'sections' => []
                     ];
                 }
-                
+
                 $classesWithSections[$classId]['sections'][] = [
                     'section_id' => $section->id,
                     'section_name' => $section->name ?? 'بدون اسم',
@@ -544,7 +539,6 @@ class TeacherController extends Controller
                 'success' => true,
                 'data' => $formattedData
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -572,7 +566,7 @@ class TeacherController extends Controller
                 foreach ($teacher->sections as $section) {
                     $classId = $section->class_id;
                     $className = $section->class->name ?? 'بدون صف';
-                    
+
                     if (!isset($classesWithSections[$classId])) {
                         $classesWithSections[$classId] = [
                             'class_id' => $classId,
@@ -580,7 +574,7 @@ class TeacherController extends Controller
                             'sections' => []
                         ];
                     }
-                    
+
                     $classesWithSections[$classId]['sections'][] = [
                         'section_id' => $section->id,
                         'section_name' => $section->name ?? 'بدون اسم'
@@ -594,6 +588,8 @@ class TeacherController extends Controller
                     'email' => $teacher->user->email ?? null,
                     'gender' => $teacher->gender,
                     'phone_number' => $teacher->phone_number,
+                    'comment' => $teacher->comment,
+                    'created_at' => $teacher->created_at,
                     'classes' => array_values($classesWithSections),
                     'subjects' => $teacher->subjects->pluck('name')->toArray(),
                     'total_sections' => $teacher->sections->count(),
@@ -606,7 +602,6 @@ class TeacherController extends Controller
                 'data' => $formattedTeachers,
                 'total' => $formattedTeachers->count()
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
