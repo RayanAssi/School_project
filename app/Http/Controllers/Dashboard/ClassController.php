@@ -290,36 +290,50 @@ public function show($id)
      * DELETE /api/classes/{id}
      */
     public function destroy($id)
-    {
-        if (!Auth::check()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'يجب تسجيل الدخول أولاً'
-            ], 401);
-        }
-
-        $class = Classes::find($id);
-
-        if (!$class) {
-            return response()->json([
-                'success' => false,
-                'message' => 'الصف غير موجود'
-            ], 404);
-        }
-
-        try {
-            $class->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'تم حذف الصف بنجاح'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ أثناء حذف الصف',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+{
+    if (!Auth::check()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'يجب تسجيل الدخول أولاً'
+        ], 401);
     }
+
+    $class = Classes::find($id);
+
+    if (!$class) {
+        return response()->json([
+            'success' => false,
+            'message' => 'الصف غير موجود'
+        ], 404);
+    }
+
+    try {
+        $class->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم حذف الصف بنجاح'
+        ]);
+    } catch (\Illuminate\Database\QueryException $e) {
+        
+        if ($e->getCode() == 23000) {
+            return response()->json([
+                'success' => false,
+                'message' => 'لا يمكن حذف الصف لأنه يحتوي على طلاب مسجلين. قم بنقل الطلاب أولاً.'
+            ], 422);
+        }
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء حذف الصف',
+            'error' => $e->getMessage()
+        ], 500);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء حذف الصف',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }
