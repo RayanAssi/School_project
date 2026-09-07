@@ -637,4 +637,54 @@ class SubjectController extends Controller
             ], 500);
         }
     }
+    /**
+ * Get subjects by class and section
+ * GET /api/subjects/class/{classId}/section/{sectionId}
+ */
+public function getSubjectsByClassAndSection($classId, $sectionId)
+{
+    try {
+        $subjects = Subject::with(['class', 'teachers', 'files'])
+            ->where('class_id', $classId)
+            ->whereHas('students', function ($query) use ($sectionId) {
+                $query->where('section_id', $sectionId);
+            })
+            ->get();
+
+        $formattedSubjects = $subjects->map(function ($subject) {
+            return [
+                'id' => $subject->id,
+                'name' => $subject->name,
+                'comment' => $subject->comment,
+                'full_mark' => $subject->full_mark,
+                'class' => [
+                    'id' => $subject->class->id ?? null,
+                    'name' => $subject->class->name ?? null,
+                ],
+                'teachers' => $subject->teachers->map(function ($teacher) {
+                    return [
+                        'id' => $teacher->id,
+                        'full_name' => $teacher->user->full_name ?? null,
+                        'phone_number' => $teacher->phone_number ?? null,
+                    ];
+                }),
+                'files_count' => $subject->files->count(),
+                'created_at' => $subject->created_at,
+                'updated_at' => $subject->updated_at,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $formattedSubjects,
+            'total' => $formattedSubjects->count()
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء جلب المواد حسب الصف والشعبة',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }

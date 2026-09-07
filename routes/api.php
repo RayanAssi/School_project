@@ -83,6 +83,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('subjects/search', [SubjectController::class, 'search'])->name('subjects.search');
     Route::get('subjects/class/{classId}', [SubjectController::class, 'getSubjectsByClass'])->name('subjects.by.class');
     Route::get('subjects/mark-range', [SubjectController::class, 'getSubjectsByMarkRange'])->name('subjects.mark.range');
+    Route::get('subjects/class/{classId}/section/{sectionId}', [SubjectController::class, 'getSubjectsByClassAndSection']);
 
     // Teacher assignment routes
     Route::post('subjects/assign-teacher', [SubjectController::class, 'assignTeacher'])->name('subjects.assign.teacher');
