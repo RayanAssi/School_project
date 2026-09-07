@@ -400,113 +400,6 @@ class TeacherController extends Controller
         }
     }
 
-
-    /**
-     * Get teacher's classes with sections and their subjects
-     */
-    public function getClasses($id)
-    {
-        try {
-            $teacher = Teacher::with(['sections.class', 'subjects'])->find($id);
-
-            if (!$teacher) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'المدرس غير موجود'
-                ], 404);
-            }
-
-            // تجميع الصفوف مع شعبها وموادها
-            $classes = [];
-            $seenClasses = [];
-
-            foreach ($teacher->sections as $section) {
-                $classId = $section->class_id;
-                $className = $section->class->name ?? 'بدون صف';
-
-                if (!isset($seenClasses[$classId])) {
-                    $seenClasses[$classId] = true;
-                    $classes[] = [
-                        'id' => $classId,
-                        'class_name' => $className,
-                        'sections' => []
-                    ];
-                }
-
-                // جلب المواد لهذه الشعبة
-                $sectionSubjects = [];
-                foreach ($teacher->subjects as $subject) {
-                    // التحقق إذا كانت هذه المادة مرتبطة بهذه الشعبة
-                    $isRelated = $subject->sections()->where('sections.id', $section->id)->exists();
-                    if ($isRelated) {
-                        $sectionSubjects[] = [
-                            'id' => $subject->id,
-                            'name' => $subject->name ?? $subject->subject_name ?? 'بدون مادة'
-                        ];
-                    }
-                }
-
-                // إضافة الشعبة للصف المناسب
-                foreach ($classes as &$class) {
-                    if ($class['id'] === $classId) {
-                        $class['sections'][] = [
-                            'id' => $section->id,
-                            'name' => $section->name ?? 'بدون شعبة',
-                            'subjects' => $sectionSubjects
-                        ];
-                        break;
-                    }
-                }
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $classes
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ أثناء جلب صفوف المدرس',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get teacher's subjects (simplified)
-     */
-    public function getSubjects($id)
-    {
-        try {
-            $teacher = Teacher::with(['subjects'])->find($id);
-
-            if (!$teacher) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'المدرس غير موجود'
-                ], 404);
-            }
-
-            $subjects = $teacher->subjects->map(function ($subject) {
-                return [
-                    'id' => $subject->id,
-                    'name' => $subject->name ?? $subject->subject_name ?? 'بدون مادة',
-                ];
-            });
-
-            return response()->json([
-                'success' => true,
-                'data' => $subjects
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ أثناء جلب مواد المدرس',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function getMySections(Request $request)
     {
         try {
@@ -566,6 +459,158 @@ class TeacherController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء جلب شعب الأستاذ',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+     /**
+     * Get teacher with their classes, sections, and subjects
+     * 
+     * هذه الدالة تجلب الأستاذ مع:
+     * - الصفوف التي يدرسها (Classes)
+     * - الشعب التي يدرسها (Sections) مرتبة حسب الصف
+     * - المواد التي يدرسها (Subjects)
+     */
+    public function getTeacherWithDetails($id)
+    {
+        try {
+            // جلب الأستاذ مع جميع العلاقات المطلوبة
+            $teacher = Teacher::with([
+                'user',
+                'sections' => function ($query) {
+                    $query->with(['class']); // جلب الصف المرتبط بكل شعبة
+                },
+                'subjects'
+            ])->find($id);
+
+            // التحقق من وجود الأستاذ
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الأستاذ غير موجود'
+                ], 404);
+            }
+
+            // تجميع الشعب حسب الصفوف
+            $classesWithSections = [];
+            foreach ($teacher->sections as $section) {
+                $classId = $section->class_id;
+                $className = $section->class->name ?? 'بدون صف';
+                
+                if (!isset($classesWithSections[$classId])) {
+                    $classesWithSections[$classId] = [
+                        'class_id' => $classId,
+                        'class_name' => $className,
+                        'sections' => []
+                    ];
+                }
+                
+                $classesWithSections[$classId]['sections'][] = [
+                    'section_id' => $section->id,
+                    'section_name' => $section->name ?? 'بدون اسم',
+                    'comment' => $section->comment
+                ];
+            }
+
+            // تنسيق البيانات النهائية
+            $formattedData = [
+                'teacher' => [
+                    'id' => $teacher->id,
+                    'full_name' => $teacher->user->full_name ?? null,
+                    'user_name' => $teacher->user->user_name ?? null,
+                    'email' => $teacher->user->email ?? null,
+                    'gender' => $teacher->gender,
+                    'phone_number' => $teacher->phone_number,
+                    'comment' => $teacher->comment,
+                    'created_at' => $teacher->created_at,
+                ],
+                'classes' => array_values($classesWithSections), // الصفوف مع شعبها
+                'subjects' => $teacher->subjects->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'name' => $subject->name,
+                        'code' => $subject->code ?? null,
+                    ];
+                }),
+                'summary' => [
+                    'total_classes' => count($classesWithSections),
+                    'total_sections' => $teacher->sections->count(),
+                    'total_subjects' => $teacher->subjects->count(),
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedData
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات الأستاذ',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all teachers with their details (for listing)
+     */
+    public function getAllTeachersWithDetails(Request $request)
+    {
+        try {
+            $teachers = Teacher::with([
+                'user',
+                'sections.class',
+                'subjects'
+            ])->get();
+
+            $formattedTeachers = $teachers->map(function ($teacher) {
+                // تجميع الشعب حسب الصفوف لكل أستاذ
+                $classesWithSections = [];
+                foreach ($teacher->sections as $section) {
+                    $classId = $section->class_id;
+                    $className = $section->class->name ?? 'بدون صف';
+                    
+                    if (!isset($classesWithSections[$classId])) {
+                        $classesWithSections[$classId] = [
+                            'class_id' => $classId,
+                            'class_name' => $className,
+                            'sections' => []
+                        ];
+                    }
+                    
+                    $classesWithSections[$classId]['sections'][] = [
+                        'section_id' => $section->id,
+                        'section_name' => $section->name ?? 'بدون اسم'
+                    ];
+                }
+
+                return [
+                    'id' => $teacher->id,
+                    'full_name' => $teacher->user->full_name ?? null,
+                    'user_name' => $teacher->user->user_name ?? null,
+                    'email' => $teacher->user->email ?? null,
+                    'gender' => $teacher->gender,
+                    'phone_number' => $teacher->phone_number,
+                    'classes' => array_values($classesWithSections),
+                    'subjects' => $teacher->subjects->pluck('name')->toArray(),
+                    'total_sections' => $teacher->sections->count(),
+                    'total_subjects' => $teacher->subjects->count(),
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedTeachers,
+                'total' => $formattedTeachers->count()
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات المدرسين',
                 'error' => $e->getMessage()
             ], 500);
         }

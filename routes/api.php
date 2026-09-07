@@ -22,6 +22,8 @@ Route::post('/save-fcm-token', [AuthController::class, 'saveFCMToken'])
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
 
     // Teacher Routes
+        Route::get('teachers/{id}/details', [TeacherController::class, 'getTeacherWithDetails']);
+    Route::get('teachers/all-with-details', [TeacherController::class, 'getAllTeachersWithDetails']);
     Route::get('teachers/statistics', [TeacherController::class, 'statistics'])->name('teachers.statistics');
     Route::get('teachers/search', [TeacherController::class, 'search'])->name('teachers.search');
     Route::get('teachers/gender/{gender}', [TeacherController::class, 'getTeachersByGender'])->name('teachers.gender');
@@ -30,7 +32,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::post('teachers/{id}/reset-password', [TeacherController::class, 'resetPassword']);
     Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']); 
     Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
-    Route::get('/teacher/my-sections', [TeacherController::class, 'getMySections']);
+    Route::get('teacher/my-sections', [TeacherController::class, 'getMySections']);
 
 
     //parents Routes
