@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\User;
 use App\Models\Parente;
+use App\Models\Section;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -476,27 +477,55 @@ class StudentController extends Controller
     /**
      * Get students by section
      */
-    public function getStudentsBySection($sectionId)
-    {
-        try {
-            $students = Student::with(['user', 'parent', 'class', 'section'])
-                ->where('section_id', $sectionId)
-                ->get();
+    /**
+ * Get students by section
+ */
+public function getStudentsBySection($sectionId)
+{
+    try {
+        $students = Student::with(['user', 'parent', 'class', 'section'])
+            ->where('section_id', $sectionId)
+            ->get();
 
-            return response()->json([
-                'success' => true,
-                'data' => $students,
-                'total' => $students->count()
-            ], 200);
+        // ✅ تنسيق البيانات مثل دالة index
+        $formattedStudents = $students->map(function ($student) {
+            return [
+                'id' => $student->id,
+                'user_name' => $student->user->user_name ?? null,
+                'email' => $student->user->email ?? null,
+                'full_name' => $student->user->full_name ?? null,
+                'birth_date' => $student->birth_date,
+                'gender' => $student->gender,
+                'residential_address' => $student->residential_address,
+                'city' => $student->city,
+                'comment' => $student->comment,
+                'class_name' => $student->class->name ?? null,
+                'section_name' => $student->section->name ?? null,
+                'father_name' => $student->parent->full_name_father ?? null,
+                'mother_name' => $student->parent->full_name_mother ?? null,
+                'father_phone' => $student->parent->phone_number_father ?? null,
+                'mother_phone' => $student->parent->phone_number_mother ?? null,
+                'job_father' => $student->parent->job_father ?? null,
+                'job_mother' => $student->parent->job_mother ?? null,
+                'created_at' => $student->created_at,
+                'updated_at' => $student->updated_at,
+            ];
+        });
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ أثناء جلب الطلاب حسب الشعبة',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $formattedStudents,
+            'total' => $formattedStudents->count()
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء جلب الطلاب حسب الشعبة',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Get students statistics
@@ -559,4 +588,46 @@ class StudentController extends Controller
             ], 500);
         }
     }
+    /**
+ * Add existing students to a section
+ */
+public function addStudentsToSection(Request $request, $sectionId)
+{
+    try {
+        $request->validate([
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+        ]);
+
+        $section = Section::findOrFail($sectionId);
+
+        DB::beginTransaction();
+
+        // ✅ تحديث section_id لكل طالب
+        foreach ($request->student_ids as $studentId) {
+            $student = Student::find($studentId);
+            if ($student) {
+                $student->section_id = $sectionId;
+                $student->class_id = $section->class_id;
+                $student->save();
+            }
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إضافة الطلاب إلى الشعبة بنجاح',
+            'data' => Student::where('section_id', $sectionId)->with(['user', 'parent'])->get()
+        ], 200);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء إضافة الطلاب إلى الشعبة',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }
