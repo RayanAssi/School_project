@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Dashboard;
 use App\Http\Controllers\Controller;
 use App\Models\Section;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class SectionController extends Controller
@@ -140,16 +141,71 @@ class SectionController extends Controller
     }
 
     //delete section
+    // public function destroy($id)
+    // {
+    //     $section = Section::findOrFail($id);
+    //     $section->delete();
+
+    //     return response()->json([
+    //         'message' => 'Section deleted successfully',
+    //         'data' => null,
+    //     ], 200);
+    // }
+
     public function destroy($id)
     {
-        $section = Section::findOrFail($id);
-        $section->delete();
+        // 1. التحقق من تسجيل الدخول
+        if (!Auth::check()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'يجب تسجيل الدخول أولاً'
+            ], 401);
+        }
 
-        return response()->json([
-            'message' => 'Section deleted successfully',
-            'data' => null,
-        ], 200);
+        // 2. البحث عن الشعبة
+        $section = Section::find($id);
+
+        if (!$section) {
+            return response()->json([
+                'success' => false,
+                'message' => 'الشعبة غير موجودة'
+            ], 404);
+        }
+
+        // 3. محاولة حذف الشعبة
+        try {
+            $section->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حذف الشعبة بنجاح'
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // 4. التحقق من وجود طلاب مرتبطين (رقم الخطأ 23000)
+            if ($e->getCode() == 23000) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن حذف الشعبة لأنها تحتوي على طلاب مسجلين. قم بنقل الطلاب إلى شعبة أخرى أولاً.'
+                ], 422);
+            }
+
+            // 5. أخطاء قاعدة بيانات أخرى
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ في قاعدة البيانات أثناء حذف الشعبة',
+                'error' => $e->getMessage()
+            ], 500);
+        } catch (\Exception $e) {
+            // 6. أي خطأ آخر غير متوقع
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء حذف الشعبة',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
+
+
     //statistics of sections, teachers and students
     public function statistics()
     {
