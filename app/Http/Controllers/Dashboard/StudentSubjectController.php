@@ -1082,4 +1082,92 @@ class StudentSubjectController extends Controller
             ], 500);
         }
     }
+    
+/**
+ * Get exams by class and section (grade records for a specific class/section)
+ * GET /api/student-subjects/by-class-section
+ */
+public function getByClassSection(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'class_id' => 'required|exists:classes,id',
+        'section_id' => 'required|exists:sections,id',
+        'exam_type' => 'nullable|in:نصفي,نهائي',
+        'subject_id' => 'nullable|exists:subjects,id',
+        'from_date' => 'nullable|date',
+        'to_date' => 'nullable|date|after_or_equal:from_date',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 'error',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    // 1. جلب جميع طلاب الشعبة المحددة
+    $studentIds = Student::where('class_id', $request->class_id)
+        ->where('section_id', $request->section_id)
+        ->pluck('id');
+
+    if ($studentIds->isEmpty()) {
+        return response()->json([
+            'status' => 'success',
+            'data' => [],
+            'message' => 'لا يوجد طلاب في هذه الشعبة'
+        ]);
+    }
+
+    // 2. جلب الاختبارات (العلامات) لهؤلاء الطلاب
+    $query = StudentSubject::with(['subject'])
+        ->whereIn('student_id', $studentIds)
+        ->whereNotNull('mark'); // العلامات المسجلة فقط
+
+    // فلترة حسب نوع الامتحان
+    if ($request->has('exam_type') && $request->exam_type) {
+        $query->where('exam_type', $request->exam_type);
+    }
+
+    // فلترة حسب المادة
+    if ($request->has('subject_id') && $request->subject_id) {
+        $query->where('subject_id', $request->subject_id);
+    }
+
+    // فلترة حسب التاريخ
+    if ($request->has('from_date')) {
+        $query->whereDate('date', '>=', $request->from_date);
+    }
+    if ($request->has('to_date')) {
+        $query->whereDate('date', '<=', $request->to_date);
+    }
+
+    // ترتيب حسب التاريخ (الأحدث أولاً)
+    $query->orderBy('date', 'desc');
+
+    // جلب جميع النتائج (بدون pagination)
+    $results = $query->get();
+
+    // تحويل البيانات لإرجاع الحقول المطلوبة فقط
+    $transformedData = $results->map(function ($item) {
+        return [
+            'subject_name' => optional($item->subject)->name ?? 'غير محدد',
+            'exam_type' => $item->exam_type,
+            'mark' => $item->mark,
+            'date' => $item->date ? $item->date->format('Y-m-d') : null,
+            'note' => $item->note,
+        ];
+    });
+
+    return response()->json([
+        'status' => 'success',
+        'data' => $transformedData,
+        'count' => $transformedData->count(),
+        'filters' => [
+            'class_id' => $request->class_id,
+            'section_id' => $request->section_id,
+            'exam_type' => $request->exam_type,
+            'subject_id' => $request->subject_id,
+        ]
+    ]);
+}
 }
