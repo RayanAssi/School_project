@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\StudentSubject;
 use App\Models\Subject;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -841,4 +842,116 @@ class StudentSubjectController extends Controller
             'data' => $report
         ]);
     }
+
+
+    /**
+ * Store multiple student subjects (grades) at once
+ * POST /api/student-subjects/bulk
+ */
+public function storeBulk(Request $request)
+{
+    try {
+        // 1. التحقق من وجود المادة
+        $subject = Subject::find($request->subject_id);
+        
+        if (!$subject) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'المادة غير موجودة'
+            ], 404);
+        }
+
+        // 2. التحقق من البيانات
+        $validator = Validator::make($request->all(), [
+            'subject_id' => 'required|exists:subjects,id',
+            'exam_type' => ['required', Rule::in(['نصفي', 'نهائي'])],
+            'date' => 'required|date',
+            'students' => 'required|array|min:1',
+            'students.*.student_id' => 'required|exists:students,id',
+            'students.*.mark' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                'max:' . $subject->full_mark,
+            ],
+            'students.*.note' => 'nullable|string|max:500',
+            'students.*.duration' => 'nullable|date_format:H:i:s',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // 3. تجهيز البيانات للإدخال
+        $results = [];
+        $errors = [];
+        $successCount = 0;
+        $failCount = 0;
+
+        DB::beginTransaction();
+
+        foreach ($request->students as $studentData) {
+            // التحقق من التكرار
+            $exists = StudentSubject::where('student_id', $studentData['student_id'])
+                ->where('subject_id', $request->subject_id)
+                ->where('exam_type', $request->exam_type)
+                ->exists();
+
+            if ($exists) {
+                $errors[] = [
+                    'student_id' => $studentData['student_id'],
+                    'message' => 'هذا الطالب مسجل بالفعل لهذه المادة ونوع الامتحان'
+                ];
+                $failCount++;
+                continue;
+            }
+
+            // إنشاء التسجيل
+            $studentSubject = StudentSubject::create([
+                'student_id' => $studentData['student_id'],
+                'subject_id' => $request->subject_id,
+                'exam_type' => $request->exam_type,
+                'date' => $request->date,
+                'mark' => $studentData['mark'] ?? null,
+                'note' => $studentData['note'] ?? null,
+                'duration' => $studentData['duration'] ?? null,
+            ]);
+
+            // ✅ إخفاء duration من النتيجة
+            $results[] = $studentSubject->load(['student', 'subject'])->makeHidden(['duration']);
+            $successCount++;
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "تم إضافة {$successCount} تسجيل بنجاح",
+            'data' => [
+                'subject' => [
+                    'id' => $subject->id,
+                    'name' => $subject->name,
+                    'full_mark' => $subject->full_mark,
+                ],
+                'exam_type' => $request->exam_type,
+                'date' => $request->date,
+                'success_count' => $successCount,
+                'fail_count' => $failCount,
+                'successful_records' => $results,
+                'failed_records' => $errors,
+            ]
+        ], 201);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'status' => 'error',
+            'message' => 'حدث خطأ أثناء إضافة العلامات',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }

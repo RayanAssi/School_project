@@ -112,7 +112,7 @@ Route::post('/sections/{sectionId}/students/add', [StudentController::class, 'ad
     Route::get('student-subjects/average/{subjectId}', [StudentSubjectController::class, 'getSubjectAverage'])->name('student-subjects.average');
     Route::get('student-subjects/top-students', [StudentSubjectController::class, 'getTopStudents'])->name('student-subjects.top-students');
     Route::get('student-subjects/student/{studentId}/report', [StudentSubjectController::class, 'generateReport'])->name('student-subjects.report');
-
+     Route::post('student-subjects/bulk', [StudentSubjectController::class, 'storeBulk'])->name('student-subjects.bulk');
     // Resource Routes (must be at the end)
     Route::resource('student-subjects', StudentSubjectController::class);
 });
