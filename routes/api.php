@@ -61,6 +61,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('students/{id}', [StudentController::class, 'show']);
     Route::put('students/{id}', [StudentController::class, 'update']);
     Route::delete('students/{id}', [StudentController::class, 'destroy']);
+    
+Route::post('/sections/{sectionId}/students/add', [StudentController::class, 'addStudentsToSection']);
 
     // Student Filters
     Route::get('students/class/{classId}', [StudentController::class, 'getStudentsByClass']);
