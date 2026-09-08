@@ -23,13 +23,13 @@ Route::get('/check-tokens', [NotificationController::class, 'checkTokens'])
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
 
     // Teacher Routes
-    Route::get('teachers/{id}/details', [TeacherController::class, 'getTeacherWithDetails']);
     Route::get('teachers/all-with-details', [TeacherController::class, 'getAllTeachersWithDetails']);
+    Route::get('teachers/{id}/details', [TeacherController::class, 'getTeacherWithDetails']);
     Route::get('teachers/statistics', [TeacherController::class, 'statistics'])->name('teachers.statistics');
     Route::get('teachers/search', [TeacherController::class, 'search'])->name('teachers.search');
     Route::get('teachers/gender/{gender}', [TeacherController::class, 'getTeachersByGender'])->name('teachers.gender');
     Route::get('teachers/phone/{phone}', [TeacherController::class, 'getTeachersByPhone'])->name('teachers.phone');
-    Route::resource('teachers', teacherController::class);
+    Route::resource('teachers', TeacherController::class)->except(['edit']);
     Route::post('teachers/{id}/reset-password', [TeacherController::class, 'resetPassword']);
     Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']);
     Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
