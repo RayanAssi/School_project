@@ -34,7 +34,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']);
     Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
     Route::get('teacher/my-sections', [TeacherController::class, 'getMySections']);
-
+    Route::put('/teachers/{id}/assign-sections-subjects', [TeacherController::class, 'assignSectionsAndSubjects']);
+    Route::put('/teachers/{id}/assign-sections-subjects', [TeacherController::class, 'assignSectionsAndSubjects']);
 
     //parents Routes
     Route::get('parents/statistics', [ParentController::class, 'statistics'])->name('parents.statistics');
@@ -64,8 +65,14 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('students/{id}', [StudentController::class, 'show']);
     Route::put('students/{id}', [StudentController::class, 'update']);
     Route::delete('students/{id}', [StudentController::class, 'destroy']);
+<<<<<<< HEAD
 
     Route::post('/sections/{sectionId}/students/add', [StudentController::class, 'addStudentsToSection']);
+=======
+    Route::put('/students/{id}/transfer-section', [StudentController::class, 'transferSection']);
+    Route::get('/students/{id}/available-sections', [StudentController::class, 'getAvailableSections']);
+Route::post('/sections/{sectionId}/students/add', [StudentController::class, 'addStudentsToSection']);
+>>>>>>> f7189e142eb9742b7384ee61d4dd1e70bb48d543
 
     // Student Filters
     Route::get('students/class/{classId}', [StudentController::class, 'getStudentsByClass']);

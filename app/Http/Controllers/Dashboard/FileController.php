@@ -18,32 +18,32 @@ class FileController extends Controller
      * GET /api/files?subject_id=1
      */
     public function index()
-{
-    try {
-        $files = File::with(['subject:id,name'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+    {
+        try {
+            $files = File::with(['subject:id,name'])
+                ->orderBy('created_at', 'desc')
+                ->get();
 
-        // Add download URL to each file
-        $files->transform(function ($file) {
-            $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
-            return $file;
-        });
+            // Add download URL to each file
+            $files->transform(function ($file) {
+                $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
+                return $file;
+            });
 
-        return response()->json([
-            'success' => true,
-            'data' => $files,
-            'total' => $files->count(),
-            'message' => 'Files retrieved successfully'
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to retrieve files',
-            'error' => $e->getMessage()
-        ], 500);
+            return response()->json([
+                'success' => true,
+                'data' => $files,
+                'total' => $files->count(),
+                'message' => 'Files retrieved successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve files',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     /**
      * Upload a new file (teachers only)
@@ -200,53 +200,53 @@ class FileController extends Controller
      * Update file details (teachers only)
      * PUT /api/files/{id}
      */
-public function update(Request $request, $id)
-{
-    $file = File::find($id);
+    public function update(Request $request, $id)
+    {
+        $file = File::find($id);
 
-    if (!$file) {
-        return response()->json([
-            'success' => false,
-            'message' => 'File not found'
-        ], 404);
-    }
+        if (!$file) {
+            return response()->json([
+                'success' => false,
+                'message' => 'File not found'
+            ], 404);
+        }
 
-    $validator = Validator::make($request->all(), [
-        'name' => 'sometimes|required|string|max:255',
-        'subject_id' => 'sometimes|required|exists:subjects,id',
-    ], [
-        'name.required' => 'File name is required',
-        'name.string' => 'File name must be a string',
-        'name.max' => 'File name cannot exceed 255 characters',
-        'subject_id.required' => 'Subject is required',
-        'subject_id.exists' => 'Subject does not exist',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'success' => false,
-            'errors' => $validator->errors()
-        ], 422);
-    }
-
-    try {
-        // استخدم fill بدلاً من update
-        $file->fill($request->only(['name', 'subject_id']));
-        $file->save();
-
-        return response()->json([
-            'success' => true,
-            'data' => $file->load('subject'),
-            'message' => 'File details updated successfully'
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|required|string|max:255',
+            'subject_id' => 'sometimes|required|exists:subjects,id',
+        ], [
+            'name.required' => 'File name is required',
+            'name.string' => 'File name must be a string',
+            'name.max' => 'File name cannot exceed 255 characters',
+            'subject_id.required' => 'Subject is required',
+            'subject_id.exists' => 'Subject does not exist',
         ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to update file',
-            'error' => $e->getMessage()
-        ], 500);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            
+            $file->fill($request->only(['name', 'subject_id']));
+            $file->save();
+
+            return response()->json([
+                'success' => true,
+                'data' => $file->load('subject'),
+                'message' => 'File details updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update file',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
     /**
      * Delete a file (teachers only)
@@ -301,12 +301,13 @@ public function update(Request $request, $id)
                 ], 404);
             }
 
+            
             $files = File::where('subject_id', $subjectId)
                 ->orderBy('created_at', 'desc')
-                ->paginate(15);
+                ->get();
 
-            // Add download URL to each file
-            $files->getCollection()->transform(function ($file) {
+            
+            $files->transform(function ($file) {
                 $file->download_url = url('/api/dashboard/files/' . $file->id . '/download');
                 return $file;
             });
