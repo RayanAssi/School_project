@@ -12,6 +12,7 @@ use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification as FirebaseNotification;
 use Kreait\Firebase\Exception\MessagingException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
@@ -22,7 +23,7 @@ class NotificationController extends Controller
         // Initialize Firebase
         $factory = (new Factory)
             ->withServiceAccount(config('firebase.credentials.file'));
-        
+
         $this->messaging = $factory->createMessaging();
     }
 
@@ -55,75 +56,75 @@ class NotificationController extends Controller
     /**
      *  Save button - Create notification and send to all users
      */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'message' => 'required|string'
-        ]);
+    // public function store(Request $request)
+    // {
+    //     $validated = $request->validate([
+    //         'title' => 'required|string|max:255',
+    //         'message' => 'required|string'
+    //     ]);
 
-        try {
-            DB::beginTransaction();
+    //     try {
+    //         DB::beginTransaction();
 
-            // 1. Create the notification
-            $notification = Notification::create([
-                'title' => $validated['title'],
-                'message' => $validated['message']
-            ]);
+    //         // 1. Create the notification
+    //         $notification = Notification::create([
+    //             'title' => $validated['title'],
+    //             'message' => $validated['message']
+    //         ]);
 
-            // 2. Get all users
-            $users = User::all();
+    //         // 2. Get all users
+    //         $users = User::all();
             
-            if ($users->isEmpty()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No users found to send notification'
-                ], 404);
-            }
+    //         if ($users->isEmpty()) {
+    //             return response()->json([
+    //                 'status' => 'error',
+    //                 'message' => 'No users found to send notification'
+    //             ], 404);
+    //         }
 
-            // 3. Link notification to all users (store in database)
-            foreach ($users as $user) {
-                UserNotification::create([
-                    'user_id' => $user->id,
-                    'notification_id' => $notification->id,
-                    'is_read' => false
-                ]);
-            }
+    //         // 3. Link notification to all users (store in database)
+    //         foreach ($users as $user) {
+    //             UserNotification::create([
+    //                 'user_id' => $user->id,
+    //                 'notification_id' => $notification->id,
+    //                 'is_read' => false
+    //             ]);
+    //         }
 
-            // 4. Send Firebase notification via Topic (to all devices)
-            try {
-                $this->sendFirebaseNotificationToTopic(
-                    $notification->title,
-                    $notification->message
-                );
-                $firebaseSent = true;
-            } catch (\Exception $e) {
-                $firebaseSent = false;
-                $firebaseError = $e->getMessage();
-            }
+    //         // 4. Send Firebase notification via Topic (to all devices)
+    //         try {
+    //             $this->sendFirebaseNotificationToTopic(
+    //                 $notification->title,
+    //                 $notification->message
+    //             );
+    //             $firebaseSent = true;
+    //         } catch (\Exception $e) {
+    //             $firebaseSent = false;
+    //             $firebaseError = $e->getMessage();
+    //         }
 
-            DB::commit();
+    //         DB::commit();
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Notification created and sent to all users successfully',
-                'data' => [
-                    'notification' => $notification,
-                    'total_users' => $users->count(),
-                    'firebase_sent' => $firebaseSent ?? false,
-                    'firebase_error' => $firebaseError ?? null
-                ]
-            ], 201);
+    //         return response()->json([
+    //             'status' => 'success',
+    //             'message' => 'Notification created and sent to all users successfully',
+    //             'data' => [
+    //                 'notification' => $notification,
+    //                 'total_users' => $users->count(),
+    //                 'firebase_sent' => $firebaseSent ?? false,
+    //                 'firebase_error' => $firebaseError ?? null
+    //             ]
+    //         ], 201);
 
-        } catch (\Exception $e) {
-            DB::rollBack();
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
 
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to create notification: ' . $e->getMessage()
-            ], 500);
-        }
-    }
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Failed to create notification: ' . $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
     /**
      * Send Firebase notification to all devices via Topic
@@ -140,7 +141,6 @@ class NotificationController extends Controller
                 ->withTopic('all_users'); // ✅ Send to all subscribers of this Topic
 
             return $this->messaging->send($message);
-            
         } catch (MessagingException $e) {
             throw new \Exception('Firebase error: ' . $e->getMessage());
         } catch (\Exception $e) {
@@ -178,7 +178,7 @@ class NotificationController extends Controller
             DB::beginTransaction();
 
             $notification = Notification::findOrFail($id);
-            
+
             UserNotification::where('notification_id', $id)->delete();
             $notification->delete();
 
@@ -188,7 +188,6 @@ class NotificationController extends Controller
                 'status' => 'success',
                 'message' => 'Notification deleted successfully'
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -316,6 +315,114 @@ class NotificationController extends Controller
                 'unread' => $unread,
                 'read' => $read
             ]
+        ]);
+    }
+    private function sendFirebaseNotificationToDevice($token, $title, $body)
+    {
+        try {
+            $message = CloudMessage::new()
+                ->withNotification(FirebaseNotification::create($title, $body))
+                ->withData([
+                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                    'sound' => 'default'
+                ])
+                ->withToken($token);
+
+            return $this->messaging->send($message);
+        } catch (MessagingException $e) {
+            throw new \Exception('Firebase error: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            throw new \Exception('Failed to send: ' . $e->getMessage());
+        }
+    }
+
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'message' => 'required|string'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // 1. Create the notification
+            $notification = Notification::create([
+                'title' => $validated['title'],
+                'message' => $validated['message']
+            ]);
+
+            // 2. Get all users with fcm_token
+            $users = User::whereNotNull('fcm_token')->get();
+
+            if ($users->isEmpty()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No users with FCM tokens found'
+                ], 404);
+            }
+
+            // 3. Link notification to all users
+            foreach ($users as $user) {
+                UserNotification::create([
+                    'user_id' => $user->id,
+                    'notification_id' => $notification->id,
+                    'is_read' => false
+                ]);
+            }
+
+            // 4. Send Firebase notification to each device
+            $successCount = 0;
+            $failedTokens = [];
+
+            foreach ($users as $user) {
+                try {
+                    $this->sendFirebaseNotificationToDevice(
+                        $user->fcm_token,
+                        $notification->title,
+                        $notification->message
+                    );
+                    $successCount++;
+                } catch (\Exception $e) {
+                    $failedTokens[] = $user->fcm_token;
+                    // \Log::error("Failed to send to user {$user->id}: " . $e->getMessage());
+                    Log::error("Failed to send to user {$user->id}: " . $e->getMessage());
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Notification created and sent successfully',
+                'data' => [
+                    'notification' => $notification,
+                    'total_users' => $users->count(),
+                    'sent_count' => $successCount,
+                    'failed_count' => count($failedTokens),
+                    'failed_tokens' => $failedTokens
+                ]
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to create notification: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function checkTokens()
+    {
+        $users = User::whereNotNull('fcm_token')->get(['id', 'user_name', 'fcm_token']);
+
+        return response()->json([
+            'status' => 'success',
+            'count' => $users->count(),
+            'users' => $users
         ]);
     }
 }
