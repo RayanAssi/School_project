@@ -31,7 +31,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']);
     Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
     Route::get('teacher/my-sections', [TeacherController::class, 'getMySections']);
-
+    Route::put('/teachers/{id}/assign-sections-subjects', [TeacherController::class, 'assignSectionsAndSubjects']);
+    Route::put('/teachers/{id}/assign-sections-subjects', [TeacherController::class, 'assignSectionsAndSubjects']);
 
     //parents Routes
     Route::get('parents/statistics', [ParentController::class, 'statistics'])->name('parents.statistics');
