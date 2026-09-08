@@ -9,11 +9,9 @@ use App\Http\Controllers\Dashboard\ParentController;
 
 use App\Http\Controllers\Dashboard\FileController;
 use App\Http\Controllers\Dashboard\NotificationController;
+use App\Http\Controllers\Dashboard\SectionController;
 use App\Http\Controllers\Dashboard\StudentSubjectController;
 use App\Http\Controllers\Dashboard\SubjectController;
-use App\Http\Controllers\Dashboard\TeacherController as DashboardTeacherController;
-use App\Http\Controllers\Dashboard\TeacherController as ControllersDashboardTeacherController;
-use App\Http\Controllers\Dashboard\UserNotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -22,7 +20,7 @@ Route::post('/save-fcm-token', [AuthController::class, 'saveFCMToken'])
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
 
     // Teacher Routes
-        Route::get('teachers/{id}/details', [TeacherController::class, 'getTeacherWithDetails']);
+    Route::get('teachers/{id}/details', [TeacherController::class, 'getTeacherWithDetails']);
     Route::get('teachers/all-with-details', [TeacherController::class, 'getAllTeachersWithDetails']);
     Route::get('teachers/statistics', [TeacherController::class, 'statistics'])->name('teachers.statistics');
     Route::get('teachers/search', [TeacherController::class, 'search'])->name('teachers.search');
@@ -30,7 +28,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('teachers/phone/{phone}', [TeacherController::class, 'getTeachersByPhone'])->name('teachers.phone');
     Route::resource('teachers', teacherController::class);
     Route::post('teachers/{id}/reset-password', [TeacherController::class, 'resetPassword']);
-    Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']); 
+    Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']);
     Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
     Route::get('teacher/my-sections', [TeacherController::class, 'getMySections']);
 
@@ -45,6 +43,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     //Auth
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    Route::get('/sections/for-dialog', [SectionController::class, 'getForDialog']);
+    Route::get('/subjects', [SubjectController::class, 'index']);
 
     //Class Routes
     Route::resource('classes', ClassController::class);

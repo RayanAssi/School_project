@@ -67,6 +67,11 @@ class TeacherController extends Controller
                 'gender' => 'required|in:ذكر,أنثى',
                 'phone_number' => 'required|string|unique:teachers,phone_number',
                 'comment' => 'nullable|string',
+                // ✅ إضافة قواعد التحقق للصفوف والشعب والمواد
+                'sections' => 'nullable|array',
+                'sections.*' => 'exists:sections,id',
+                'subjects' => 'nullable|array',
+                'subjects.*' => 'exists:subjects,id',
             ]);
 
             if ($validator->fails()) {
@@ -98,7 +103,20 @@ class TeacherController extends Controller
                 'user_id' => $user->id,
             ]);
 
+            // ✅ ربط الشعب مع الأستاذ
+            if ($request->has('sections') && is_array($request->sections)) {
+                $teacher->sections()->attach($request->sections);
+            }
+
+            // ✅ ربط المواد مع الأستاذ
+            if ($request->has('subjects') && is_array($request->subjects)) {
+                $teacher->subjects()->attach($request->subjects);
+            }
+
             DB::commit();
+
+            // ✅ جلب الأستاذ مع العلاقات بعد الإنشاء
+            $teacherWithRelations = Teacher::with(['user', 'sections', 'subjects'])->find($teacher->id);
 
             return response()->json([
                 'success' => true,
@@ -113,6 +131,8 @@ class TeacherController extends Controller
                         'gender' => $teacher->gender,
                         'phone_number' => $teacher->phone_number,
                         'comment' => $teacher->comment,
+                        'sections' => $teacherWithRelations->sections->pluck('id')->toArray(),
+                        'subjects' => $teacherWithRelations->subjects->pluck('id')->toArray(),
                     ]
                 ]
             ], 201);
@@ -403,7 +423,6 @@ class TeacherController extends Controller
     public function getMySections(Request $request)
     {
         try {
-            // جلب المستخدم من التوكن
             $user = $request->user();
 
             if (!$user) {
@@ -413,7 +432,6 @@ class TeacherController extends Controller
                 ], 401);
             }
 
-            // التأكد من أن المستخدم من نوع teacher
             if ($user->user_type !== 'teacher') {
                 return response()->json([
                     'success' => false,
@@ -421,9 +439,8 @@ class TeacherController extends Controller
                 ], 403);
             }
 
-            // جلب الأستاذ المرتبط بالمستخدم
             $teacher = Teacher::with(['sections' => function ($query) {
-                $query->with(['class']); // جلب الصف المرتبط بكل شعبة
+                $query->with(['class', 'students']); // إضافة students
             }])->where('user_id', $user->id)->first();
 
             if (!$teacher) {
@@ -433,13 +450,13 @@ class TeacherController extends Controller
                 ], 404);
             }
 
-            // تنسيق البيانات
             $sections = $teacher->sections->map(function ($section) {
                 return [
                     'id' => $section->id,
                     'name' => $section->name ?? 'بدون اسم',
                     'class_id' => $section->class_id,
                     'class_name' => $section->class->name ?? 'بدون صف',
+                    'students_count' => $section->students->count(), // عدد الطلاب
                     'comment' => $section->comment ?? null,
                     'created_at' => $section->created_at,
                     'updated_at' => $section->updated_at,

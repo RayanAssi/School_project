@@ -111,33 +111,33 @@ class SectionController extends Controller
     }
     //show section with its class and teachers
     public function show($id)
-{
-    $section = Section::with([
-        'class',
-        'teachers',
-        'students'
-    ])->withCount([
-        'teachers',
-        'students'
-    ])->findOrFail($id);
+    {
+        $section = Section::with([
+            'class',
+            'teachers',
+            'students'
+        ])->withCount([
+            'teachers',
+            'students'
+        ])->findOrFail($id);
 
-    return response()->json([
-        'message' => 'Section retrieved successfully',
-        'data' => [
-            'id' => $section->id,
-            'name' => $section->name,
-            'comment' => $section->comment,
-            'class_id' => $section->class_id,
-            'created_at' => $section->created_at,
-            'updated_at' => $section->updated_at,
-            'class' => $section->class,
-            'teachers' => $section->teachers,
-            'students' => $section->students,
-            'total_teachers' => $section->teachers_count,
-            'total_students' => $section->students_count,
-        ],
-    ], 200);
-}
+        return response()->json([
+            'message' => 'Section retrieved successfully',
+            'data' => [
+                'id' => $section->id,
+                'name' => $section->name,
+                'comment' => $section->comment,
+                'class_id' => $section->class_id,
+                'created_at' => $section->created_at,
+                'updated_at' => $section->updated_at,
+                'class' => $section->class,
+                'teachers' => $section->teachers,
+                'students' => $section->students,
+                'total_teachers' => $section->teachers_count,
+                'total_students' => $section->students_count,
+            ],
+        ], 200);
+    }
 
     //delete section
     public function destroy($id)
@@ -170,5 +170,31 @@ class SectionController extends Controller
             'message' => 'Statistics retrieved successfully',
             'data' => $statistics,
         ], 200);
+    }
+
+    public function getForDialog(Request $request)
+    {
+        try {
+            $sections = Section::with('class')->get();
+
+            $formattedSections = $sections->map(function ($section) {
+                return [
+                    'id' => $section->id,
+                    'name' => $section->name,
+                    'class_id' => $section->class_id,
+                    'class_name' => $section->class->name ?? null,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedSections,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
