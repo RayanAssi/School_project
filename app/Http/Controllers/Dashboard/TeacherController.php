@@ -118,35 +118,35 @@ class TeacherController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'تم إنشاء المدرس بنجاح',
-                 'data' => [
-                'teacher' => [
-                    'id' => $teacher->id,
-                    'full_name' => $user->full_name,
-                    'user_name' => $userName,
-                    'email' => $user->email,
-                    'password' => $newPassword,
-                    'gender' => $teacher->gender,
-                    'phone_number' => $teacher->phone_number,
-                    'comment' => $teacher->comment,
-                    'sections' => $teacherWithRelations->sections->map(function($section) {
-                        return [
-                            'id' => $section->id,
-                            'name' => $section->name,
-                            'class_id' => $section->class_id,
-                            'class_name' => $section->class->name ?? null,
-                        ];
-                    }),
-                    'subjects' => $teacherWithRelations->subjects->map(function($subject) {
-                        return [
-                            'id' => $subject->id,
-                            'name' => $subject->name,
-                            'class_id' => $subject->class_id,
-                            'class_name' => $subject->class->name ?? null,
-                        ];
-                    }),
+                'data' => [
+                    'teacher' => [
+                        'id' => $teacher->id,
+                        'full_name' => $user->full_name,
+                        'user_name' => $userName,
+                        'email' => $user->email,
+                        'password' => $newPassword,
+                        'gender' => $teacher->gender,
+                        'phone_number' => $teacher->phone_number,
+                        'comment' => $teacher->comment,
+                        'sections' => $teacherWithRelations->sections->map(function ($section) {
+                            return [
+                                'id' => $section->id,
+                                'name' => $section->name,
+                                'class_id' => $section->class_id,
+                                'class_name' => $section->class->name ?? null,
+                            ];
+                        }),
+                        'subjects' => $teacherWithRelations->subjects->map(function ($subject) {
+                            return [
+                                'id' => $subject->id,
+                                'name' => $subject->name,
+                                'class_id' => $subject->class_id,
+                                'class_name' => $subject->class->name ?? null,
+                            ];
+                        }),
+                    ]
                 ]
-            ]
-        ], 201);
+            ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -201,10 +201,52 @@ class TeacherController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    public function getTeacherDetails($id)
+    {
+        try {
+            $teacher = Teacher::with([
+                'user',
+                'sections',
+                'subjects'
+            ])->find($id);
+
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المدرس غير موجود'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $teacher->id,
+                    'full_name' => $teacher->user->full_name ?? null,
+                    'user_name' => $teacher->user->user_name ?? null,
+                    'email' => $teacher->user->email ?? null,
+                    'gender' => $teacher->gender,
+                    'phone_number' => $teacher->phone_number,
+                    'comment' => $teacher->comment,
+                    'sections' => $teacher->sections->pluck('id')->toArray(),
+                    'subjects' => $teacher->subjects->pluck('id')->toArray(),
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات المدرس',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a teacher
+     */
     public function update(Request $request, string $id)
     {
         try {
-            $teacher = Teacher::find($id);
+            $teacher = Teacher::with(['user'])->find($id);
 
             if (!$teacher) {
                 return response()->json([
@@ -215,9 +257,14 @@ class TeacherController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'full_name' => 'sometimes|string|max:255',
+                'email' => 'sometimes|email|unique:users,email,' . $teacher->user_id,
                 'gender' => 'sometimes|in:ذكر,أنثى',
                 'phone_number' => 'sometimes|string|unique:teachers,phone_number,' . $id,
                 'comment' => 'nullable|string',
+                'sections' => 'nullable|array',
+                'sections.*' => 'exists:sections,id',
+                'subjects' => 'nullable|array',
+                'subjects.*' => 'exists:subjects,id',
             ]);
 
             if ($validator->fails()) {
@@ -229,13 +276,16 @@ class TeacherController extends Controller
 
             DB::beginTransaction();
 
-            // تحديث بيانات المستخدم (الاسم فقط)
-            if ($request->has('full_name')) {
-                $user = User::find($teacher->user_id);
-                if ($user) {
+            // تحديث بيانات المستخدم
+            $user = User::find($teacher->user_id);
+            if ($user) {
+                if ($request->has('full_name')) {
                     $user->full_name = $request->full_name;
-                    $user->save();
                 }
+                if ($request->has('email')) {
+                    $user->email = $request->email;
+                }
+                $user->save();
             }
 
             // تحديث بيانات المدرس
@@ -245,14 +295,54 @@ class TeacherController extends Controller
                 'comment'
             ]));
 
+            // تحديث الشعب
+            if ($request->has('sections')) {
+                $teacher->sections()->sync($request->sections);
+            }
+
+            // تحديث المواد
+            if ($request->has('subjects')) {
+                $teacher->subjects()->sync($request->subjects);
+            }
+
             DB::commit();
 
-            $updatedTeacher = Teacher::with(['user'])->find($id);
+            $updatedTeacher = Teacher::with([
+                'user',
+                'sections',
+                'subjects'
+            ])->find($id);
 
             return response()->json([
                 'success' => true,
                 'message' => 'تم تحديث بيانات المدرس بنجاح',
-                'data' => $updatedTeacher
+                'data' => [
+                    'teacher' => [
+                        'id' => $updatedTeacher->id,
+                        'full_name' => $updatedTeacher->user->full_name ?? null,
+                        'user_name' => $updatedTeacher->user->user_name ?? null,
+                        'email' => $updatedTeacher->user->email ?? null,
+                        'gender' => $updatedTeacher->gender,
+                        'phone_number' => $updatedTeacher->phone_number,
+                        'comment' => $updatedTeacher->comment,
+                        'sections' => $updatedTeacher->sections->map(function ($section) {
+                            return [
+                                'id' => $section->id,
+                                'name' => $section->name,
+                                'class_id' => $section->class_id,
+                                'class_name' => $section->class->name ?? null,
+                            ];
+                        }),
+                        'subjects' => $updatedTeacher->subjects->map(function ($subject) {
+                            return [
+                                'id' => $subject->id,
+                                'name' => $subject->name,
+                                'class_id' => $subject->class_id,
+                                'class_name' => $subject->class->name ?? null,
+                            ];
+                        }),
+                    ]
+                ]
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -263,6 +353,45 @@ class TeacherController extends Controller
             ], 500);
         }
     }
+
+    public function edit($id)
+{
+    try {
+        $teacher = Teacher::with([
+            'user',
+            'sections',
+            'subjects'
+        ])->find($id);
+
+        if (!$teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'المدرس غير موجود'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $teacher->id,
+                'full_name' => $teacher->user->full_name ?? null,
+                'user_name' => $teacher->user->user_name ?? null,
+                'email' => $teacher->user->email ?? null,
+                'gender' => $teacher->gender,
+                'phone_number' => $teacher->phone_number,
+                'comment' => $teacher->comment,
+                'sections' => $teacher->sections->pluck('id')->toArray(),
+                'subjects' => $teacher->subjects->pluck('id')->toArray(),
+            ]
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء جلب بيانات المدرس',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 
     /**
      * Remove the specified resource from storage.
@@ -580,80 +709,80 @@ class TeacherController extends Controller
     /**
      * Get all teachers with their details (for listing)
      */
-   public function getAllTeachersWithDetails(Request $request)
-{
-    try {
-        $teachers = Teacher::with([
-            'user',
-            'sections.class',
-            'subjects.class'  // ✅ تأكد من جلب class مع المواد
-        ])->get();
+    public function getAllTeachersWithDetails(Request $request)
+    {
+        try {
+            $teachers = Teacher::with([
+                'user',
+                'sections.class',
+                'subjects.class'  // ✅ تأكد من جلب class مع المواد
+            ])->get();
 
-        $formattedTeachers = $teachers->map(function ($teacher) {
-            $classesWithSections = [];
-            
-            foreach ($teacher->sections as $section) {
-                $classId = $section->class_id;
-                $className = $section->class->name ?? 'بدون صف';
+            $formattedTeachers = $teachers->map(function ($teacher) {
+                $classesWithSections = [];
 
-                if (!isset($classesWithSections[$classId])) {
-                    // ✅ جلب المواد مع class_id
-                    $subjectsForThisClass = $teacher->subjects
-                        ->where('class_id', $classId)
-                        ->map(function ($subject) {
-                            return [
-                                'id' => $subject->id,
-                                'name' => $subject->name,
-                                'class_id' => $subject->class_id,
-                            ];
-                        })
-                        ->values()
-                        ->toArray();
+                foreach ($teacher->sections as $section) {
+                    $classId = $section->class_id;
+                    $className = $section->class->name ?? 'بدون صف';
 
-                    $classesWithSections[$classId] = [
-                        'class_id' => $classId,
-                        'class_name' => $className,
-                        'sections' => [],
-                        'subjects' => $subjectsForThisClass,  // ✅ إضافة المواد هنا
+                    if (!isset($classesWithSections[$classId])) {
+                        // ✅ جلب المواد مع class_id
+                        $subjectsForThisClass = $teacher->subjects
+                            ->where('class_id', $classId)
+                            ->map(function ($subject) {
+                                return [
+                                    'id' => $subject->id,
+                                    'name' => $subject->name,
+                                    'class_id' => $subject->class_id,
+                                ];
+                            })
+                            ->values()
+                            ->toArray();
+
+                        $classesWithSections[$classId] = [
+                            'class_id' => $classId,
+                            'class_name' => $className,
+                            'sections' => [],
+                            'subjects' => $subjectsForThisClass,  // ✅ إضافة المواد هنا
+                        ];
+                    }
+
+                    $classesWithSections[$classId]['sections'][] = [
+                        'section_id' => $section->id,
+                        'section_name' => $section->name ?? 'بدون اسم'
                     ];
                 }
 
-                $classesWithSections[$classId]['sections'][] = [
-                    'section_id' => $section->id,
-                    'section_name' => $section->name ?? 'بدون اسم'
+                return [
+                    'id' => $teacher->id,
+                    'full_name' => $teacher->user->full_name ?? null,
+                    'user_name' => $teacher->user->user_name ?? null,
+                    'email' => $teacher->user->email ?? null,
+                    'gender' => $teacher->gender,
+                    'phone_number' => $teacher->phone_number,
+                    'comment' => $teacher->comment,
+                    'created_at' => $teacher->created_at,
+                    'classes' => array_values($classesWithSections),  // ✅ كل صف مع مواده
+                    'subjects' => $teacher->subjects->pluck('name')->toArray(),  // للأمان
+                    'total_sections' => $teacher->sections->count(),
+                    'total_subjects' => $teacher->subjects->count(),
                 ];
-            }
+            });
 
-            return [
-                'id' => $teacher->id,
-                'full_name' => $teacher->user->full_name ?? null,
-                'user_name' => $teacher->user->user_name ?? null,
-                'email' => $teacher->user->email ?? null,
-                'gender' => $teacher->gender,
-                'phone_number' => $teacher->phone_number,
-                'comment' => $teacher->comment,
-                'created_at' => $teacher->created_at,
-                'classes' => array_values($classesWithSections),  // ✅ كل صف مع مواده
-                'subjects' => $teacher->subjects->pluck('name')->toArray(),  // للأمان
-                'total_sections' => $teacher->sections->count(),
-                'total_subjects' => $teacher->subjects->count(),
-            ];
-        });
-
-        return response()->json([
-            'success' => true,
-            'data' => $formattedTeachers,
-            'total' => $formattedTeachers->count()
-        ], 200);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'حدث خطأ أثناء جلب بيانات المدرسين',
-            'error' => $e->getMessage(),
-            'line' => $e->getLine()
-        ], 500);
+            return response()->json([
+                'success' => true,
+                'data' => $formattedTeachers,
+                'total' => $formattedTeachers->count()
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب بيانات المدرسين',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ], 500);
+        }
     }
-}
     /**
      * Assign sections and subjects to teacher
      */
@@ -712,43 +841,43 @@ class TeacherController extends Controller
         }
     }
     public function getSectionsAndSubjects()
-{
-    try {
-        // جلب كل الصفوف مع شعبها
-        $classes = Classes::with('sections')->get();
-        
-        // جلب كل المواد مع class_id
-        $subjects = Subject::select('id', 'name', 'class_id')->get();
+    {
+        try {
+            // جلب كل الصفوف مع شعبها
+            $classes = Classes::with('sections')->get();
 
-        return response()->json([
-            'success' => true,
-            'classes' => $classes->map(function ($class) {
-                return [
-                    'id' => $class->id,
-                    'name' => $class->name,
-                    'sections' => $class->sections->map(function ($section) {
-                        return [
-                            'id' => $section->id,
-                            'name' => $section->name,
-                            'class_id' => $section->class_id,
-                        ];
-                    }),
-                ];
-            }),
-            'subjects' => $subjects->map(function ($subject) {
-                return [
-                    'id' => $subject->id,
-                    'name' => $subject->name,
-                    'class_id' => $subject->class_id, // ✅ هذا مهم
-                ];
-            }),
-        ], 200);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'حدث خطأ أثناء جلب البيانات',
-            'error' => $e->getMessage(),
-        ], 500);
+            // جلب كل المواد مع class_id
+            $subjects = Subject::select('id', 'name', 'class_id')->get();
+
+            return response()->json([
+                'success' => true,
+                'classes' => $classes->map(function ($class) {
+                    return [
+                        'id' => $class->id,
+                        'name' => $class->name,
+                        'sections' => $class->sections->map(function ($section) {
+                            return [
+                                'id' => $section->id,
+                                'name' => $section->name,
+                                'class_id' => $section->class_id,
+                            ];
+                        }),
+                    ];
+                }),
+                'subjects' => $subjects->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'name' => $subject->name,
+                        'class_id' => $subject->class_id, // ✅ هذا مهم
+                    ];
+                }),
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب البيانات',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
-}
 }
