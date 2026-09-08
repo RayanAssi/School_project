@@ -44,6 +44,8 @@ class StudentController extends Controller
                 'city' => $student->city,
                 'comment' => $student->comment,
                 'class_id' => $student->class_id, 
+                'section_id' => $student->section_id, 
+                'parent_id' => $student->parent_id, 
                 'class_name' => $student->class->name ?? null,
                 'section_name' => $student->section->name ?? null,
                 'father_name' => $student->parent->full_name_father ?? null,
@@ -79,7 +81,6 @@ class StudentController extends Controller
         ], 500);
     }
 }
-
     /**
      * Store a newly created resource in storage.
      */
@@ -181,80 +182,84 @@ class StudentController extends Controller
      * Display the specified resource.
      */
     public function show(string $id)
-    {
-        try {
-            $student = Student::with(['user', 'parent', 'class', 'section', 'subjects'])->find($id);
+{
+    try {
+        $student = Student::with(['user', 'parent', 'class', 'section', 'subjects'])->find($id);
 
-            if (!$student) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'الطالب غير موجود'
-                ], 404);
-            }
-
-            $studentData = [
-                'id' => $student->id,
-                'user_name' => $student->user->user_name ?? null,
-                'email' => $student->user->email ?? null,
-                'full_name' => $student->user->full_name ?? null,
-                'birth_date' => $student->birth_date,
-                'gender' => $student->gender,
-                'residential_address' => $student->residential_address,
-                'city' => $student->city,
-                'comment' => $student->comment,
-                'class' => [
-                    'id' => $student->class->id ?? null,
-                    'name' => $student->class->name ?? null
-                ],
-                'section' => [
-                    'id' => $student->section->id ?? null,
-                    'name' => $student->section->name ?? null
-                ],
-                'parent' => [
-                    'father_name' => $student->parent->full_name_father ?? null,
-                    'mother_name' => $student->parent->full_name_mother ?? null,
-                    'father_phone' => $student->parent->phone_number_father ?? null,
-                    'mother_phone' => $student->parent->phone_number_mother ?? null,
-                    'job_father' => $student->parent->job_father ?? null,
-                    'job_mother' => $student->parent->job_mother ?? null,
-                ],
-                'subjects' => $student->subjects->map(function ($subject) {
-                    $teacher = DB::table('teacher_subject')
-                        ->join('teachers', 'teachers.id', '=', 'teacher_subject.teacher_id')
-                        ->join('users', 'users.id', '=', 'teachers.user_id') 
-                        ->where('teacher_subject.subject_id', $subject->id)
-                        ->select('users.full_name', 'users.user_name', 'teachers.id')
-                        ->first();
-
-                    return [
-                        'id' => $subject->id,
-                        'name' => $subject->name,
-                        'mark' => $subject->pivot->mark,
-                        'exam_type' => $subject->pivot->exam_type,
-                        'date' => $subject->pivot->date,
-                        'note' => $subject->pivot->note,
-                        'duration' => $subject->pivot->duration,
-                        'teacher_name' => $teacher->full_name ?? $teacher->user_name ?? null,
-                        'teacher_id' => $teacher->id ?? null,
-                    ];
-                }),
-                'created_at' => $student->created_at,
-                'updated_at' => $student->updated_at,
-            ];
-
-            return response()->json([
-                'success' => true,
-                'data' => $studentData
-            ], 200);
-
-        } catch (\Exception $e) {
+        if (!$student) {
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء جلب بيانات الطالب',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'الطالب غير موجود'
+            ], 404);
         }
+
+        $studentData = [
+            'id' => $student->id,
+            'user_name' => $student->user->user_name ?? null,
+            'email' => $student->user->email ?? null,
+            'full_name' => $student->user->full_name ?? null,
+            'birth_date' => $student->birth_date,
+            'gender' => $student->gender,
+            'residential_address' => $student->residential_address,
+            'city' => $student->city,
+            'comment' => $student->comment,
+            'class_id' => $student->class_id,
+            'section_id' => $student->section_id, 
+            'parent_id' => $student->parent_id, 
+            'class' => [
+                'id' => $student->class->id ?? null,
+                'name' => $student->class->name ?? null
+            ],
+            'section' => [
+                'id' => $student->section->id ?? null,
+                'name' => $student->section->name ?? null
+            ],
+            'parent' => [
+                'id' => $student->parent->id ?? null,
+                'father_name' => $student->parent->full_name_father ?? null,
+                'mother_name' => $student->parent->full_name_mother ?? null,
+                'father_phone' => $student->parent->phone_number_father ?? null,
+                'mother_phone' => $student->parent->phone_number_mother ?? null,
+                'job_father' => $student->parent->job_father ?? null,
+                'job_mother' => $student->parent->job_mother ?? null,
+            ],
+            'subjects' => $student->subjects->map(function ($subject) {
+                $teacher = DB::table('teacher_subject')
+                    ->join('teachers', 'teachers.id', '=', 'teacher_subject.teacher_id')
+                    ->join('users', 'users.id', '=', 'teachers.user_id') 
+                    ->where('teacher_subject.subject_id', $subject->id)
+                    ->select('users.full_name', 'users.user_name', 'teachers.id')
+                    ->first();
+
+                return [
+                    'id' => $subject->id,
+                    'name' => $subject->name,
+                    'mark' => $subject->pivot->mark,
+                    'exam_type' => $subject->pivot->exam_type,
+                    'date' => $subject->pivot->date,
+                    'note' => $subject->pivot->note,
+                    'duration' => $subject->pivot->duration,
+                    'teacher_name' => $teacher->full_name ?? $teacher->user_name ?? null,
+                    'teacher_id' => $teacher->id ?? null,
+                ];
+            }),
+            'created_at' => $student->created_at,
+            'updated_at' => $student->updated_at,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $studentData
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء جلب بيانات الطالب',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Update the specified resource in storage.
@@ -472,9 +477,7 @@ class StudentController extends Controller
         }
     }
 
-    /**
-     * Get students by section
-     */
+    
     /**
  * Get students by section
  */
@@ -497,6 +500,8 @@ public function getStudentsBySection($sectionId)
                 'city' => $student->city,
                 'comment' => $student->comment,
                 'class_id' => $student->class_id, 
+                'section_id' => $student->section_id, 
+                'parent_id' => $student->parent_id, 
                 'class_name' => $student->class->name ?? null,
                 'section_name' => $student->section->name ?? null,
                 'father_name' => $student->parent->full_name_father ?? null,
@@ -601,7 +606,7 @@ public function addStudentsToSection(Request $request, $sectionId)
 
         DB::beginTransaction();
 
-        // ✅ تحديث section_id لكل طالب
+        
         foreach ($request->student_ids as $studentId) {
             $student = Student::find($studentId);
             if ($student) {
