@@ -118,6 +118,7 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('student-subjects/student/{studentId}/report', [StudentSubjectController::class, 'generateReport'])->name('student-subjects.report');
     Route::post('student-subjects/bulk', [StudentSubjectController::class, 'storeBulk'])->name('student-subjects.bulk');
     Route::get('student-subjects/by-class-section', [StudentSubjectController::class, 'getByClassSection']);
+    Route::get('/student-subjects/subject/{subjectId}/exams-list', [StudentSubjectController::class, 'getSubjectExamsList']);
     // Resource Routes (must be at the end)
     Route::resource('student-subjects', StudentSubjectController::class);
     Route::post('/exams/store', [StudentSubjectController::class, 'storeExam']);

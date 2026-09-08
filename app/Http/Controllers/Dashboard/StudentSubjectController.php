@@ -1170,4 +1170,57 @@ public function getByClassSection(Request $request)
         ]
     ]);
 }
+
+/**
+ * Get all exams for a specific subject with type, duration, and date only
+ * GET /api/student-subjects/subject/{subjectId}/exams-list
+ */
+public function getSubjectExamsList($subjectId)
+{
+    try {
+        // 1. التحقق من وجود المادة
+        $subject = Subject::find($subjectId);
+        if (!$subject) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'المادة غير موجودة'
+            ], 404);
+        }
+
+        // 2. جلب جميع الاختبارات لهذه المادة (مميزة حسب نوع الامتحان والتاريخ)
+        $exams = StudentSubject::where('subject_id', $subjectId)
+            ->whereNotNull('mark')
+            ->select('exam_type', 'date', 'duration')
+            ->distinct()
+            ->get();
+
+        // 3. تجهيز البيانات
+        $examList = $exams->map(function ($item) {
+            return [
+                'exam_type' => $item->exam_type,
+                'date' => $item->date ? $item->date->format('Y-m-d') : null,
+                'duration' => $item->duration,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'subject' => [
+                    'id' => $subject->id,
+                    'name' => $subject->name,
+                ],
+                'total_exams' => $examList->count(),
+                'exams' => $examList,
+            ]
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'حدث خطأ أثناء جلب اختبارات المادة',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }
