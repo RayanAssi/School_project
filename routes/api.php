@@ -23,13 +23,13 @@ Route::get('/check-tokens', [NotificationController::class, 'checkTokens'])
 Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['auth:sanctum']], function () {
 
     // Teacher Routes
-    Route::get('teachers/{id}/details', [TeacherController::class, 'getTeacherWithDetails']);
     Route::get('teachers/all-with-details', [TeacherController::class, 'getAllTeachersWithDetails']);
+    Route::get('teachers/{id}/details', [TeacherController::class, 'getTeacherWithDetails']);
     Route::get('teachers/statistics', [TeacherController::class, 'statistics'])->name('teachers.statistics');
     Route::get('teachers/search', [TeacherController::class, 'search'])->name('teachers.search');
     Route::get('teachers/gender/{gender}', [TeacherController::class, 'getTeachersByGender'])->name('teachers.gender');
     Route::get('teachers/phone/{phone}', [TeacherController::class, 'getTeachersByPhone'])->name('teachers.phone');
-    Route::resource('teachers', teacherController::class);
+    Route::resource('teachers', TeacherController::class)->except(['edit']);
     Route::post('teachers/{id}/reset-password', [TeacherController::class, 'resetPassword']);
     Route::get('teachers/{id}/subjects', [TeacherController::class, 'getSubjects']);
     Route::get('teachers/{id}/classes', [TeacherController::class, 'getClasses']);
@@ -117,6 +117,8 @@ Route::group(['prefix' => 'dashboard', 'as' => 'dashboard.', 'middleware' => ['a
     Route::get('student-subjects/top-students', [StudentSubjectController::class, 'getTopStudents'])->name('student-subjects.top-students');
     Route::get('student-subjects/student/{studentId}/report', [StudentSubjectController::class, 'generateReport'])->name('student-subjects.report');
     Route::post('student-subjects/bulk', [StudentSubjectController::class, 'storeBulk'])->name('student-subjects.bulk');
+    Route::get('student-subjects/by-class-section', [StudentSubjectController::class, 'getByClassSection']);
+    Route::get('/student-subjects/subject/{subjectId}/exams-list', [StudentSubjectController::class, 'getSubjectExamsList']);
     // Resource Routes (must be at the end)
     Route::resource('student-subjects', StudentSubjectController::class);
     Route::post('/exams/store', [StudentSubjectController::class, 'storeExam']);
