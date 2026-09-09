@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\Parente;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -42,36 +43,67 @@ class UserController extends Controller
 
     // }
 
-    public function show()
-    {
-        $user = Auth::user();
+public function show()
+{
+    $user = Auth::user();
 
-        // البيانات الأساسية للمستخدم
-        $userData = [
-            'id' => $user->id,
-            'user_name' => $user->user_name,
-            'full_name' => $user->full_name,
-            'email' => $user->email,
-            'user_type' => $user->user_type,
-            'created_at' => $user->created_at,
-            'updated_at' => $user->updated_at,
-        ];
+    $userData = [
+        'id' => $user->id,
+        'user_name' => $user->user_name,
+        'full_name' => $user->full_name,
+        'email' => $user->email,
+        'user_type' => $user->user_type,
+        'created_at' => $user->created_at,
+        'updated_at' => $user->updated_at,
+    ];
 
-        // إذا كان المستخدم طالباً، جلب الـ id من جدول students فقط
-        if ($user->user_type === 'student') {
-            $student = Student::where('user_id', $user->id)->first();
-
-            if ($student) {
-                $userData['student_id'] = $student->id;
-            }
+    if ($user->user_type === 'student') {
+        $student = Student::where('user_id', $user->id)->first();
+        if ($student) {
+            $userData['student_id'] = $student->id;
         }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'تم جلب بيانات المستخدم بنجاح',
-            'data' => $userData
-        ]);
     }
+
+    if ($user->user_type === 'parent') {
+        $parent = Parente::where('user_id', $user->id)->first();
+        
+        if ($parent) {
+            $students = Student::with(['user', 'class', 'section'])
+                ->where('parent_id', $parent->id)
+                ->get();
+            
+            // ✅ التعديل هنا ✅
+            $childrenIds = $students->pluck('id')->toArray(); // [1, 2, 3]
+            
+            $userData['parent_id'] = $parent->id;
+            $userData['father_name'] = $parent->full_name_father;
+            $userData['children_ids'] = $childrenIds; // ✅ السطر الجديد
+            $userData['students'] = $students->map(function ($student) {
+                return [
+                    'id' => $student->id,
+                    'full_name' => $student->user->full_name ?? null,
+                    'user_name' => $student->user->user_name ?? null,
+                    'email' => $student->user->email ?? null,
+                    'birth_date' => $student->birth_date,
+                    'gender' => $student->gender,
+                    'class_id' => $student->class_id,
+                    'class_name' => $student->class->name ?? null,
+                    'section_id' => $student->section_id,
+                    'section_name' => $student->section->name ?? null,
+                    'residential_address' => $student->residential_address,
+                    'city' => $student->city,
+                    'comment' => $student->comment,
+                ];
+            });
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'تم جلب بيانات المستخدم بنجاح',
+        'data' => $userData
+    ]);
+}
 
 
     //regenerate username 
