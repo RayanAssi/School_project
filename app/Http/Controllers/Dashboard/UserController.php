@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,27 +18,61 @@ class UserController extends Controller
         $users = User::paginate(15);
 
         return response()->json([
-        'success' => true,
-        'message' => 'تم جلب المستخدمين بنجاح',
-        'data' => $users->items(),
-        'pagination' => [
-            'current_page' => $users->currentPage(),
-            'last_page' => $users->lastPage(),
-            'per_page' => $users->perPage(),
-            'total' => $users->total(),
-            'next_page_url' => $users->nextPageUrl(),
-            'prev_page_url' => $users->previousPageUrl(),
-        ]
-    ]);
+            'success' => true,
+            'message' => 'تم جلب المستخدمين بنجاح',
+            'data' => $users->items(),
+            'pagination' => [
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
+                'next_page_url' => $users->nextPageUrl(),
+                'prev_page_url' => $users->previousPageUrl(),
+            ]
+        ]);
     }
 
     //show the authenticated user information
+    // public function show()
+    // {
+
+    //     return response()->json([
+    //         'user' => Auth::user(),
+    //     ]);
+
+    // }
+
     public function show()
     {
+        $user = Auth::user();
+
+        // البيانات الأساسية للمستخدم
+        $userData = [
+            'id' => $user->id,
+            'user_name' => $user->user_name,
+            'full_name' => $user->full_name,
+            'email' => $user->email,
+            'user_type' => $user->user_type,
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at,
+        ];
+
+        // إذا كان المستخدم طالباً، جلب الـ id من جدول students فقط
+        if ($user->user_type === 'student') {
+            $student = Student::where('user_id', $user->id)->first();
+
+            if ($student) {
+                $userData['student_id'] = $student->id;
+            }
+        }
+
         return response()->json([
-            'user' => Auth::user(),
+            'success' => true,
+            'message' => 'تم جلب بيانات المستخدم بنجاح',
+            'data' => $userData
         ]);
     }
+
 
     //regenerate username 
     public function resetUserName($id)
@@ -74,7 +109,6 @@ class UserController extends Controller
                     'email' => $user->email
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -120,7 +154,6 @@ class UserController extends Controller
                     'email' => $user->email
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -129,6 +162,4 @@ class UserController extends Controller
             ], 500);
         }
     }
-
-    
 }
